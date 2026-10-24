@@ -27,7 +27,18 @@ Script cài `uv`, tạo `.venv` (Python 3.12), cài thư viện và tải 2 mode
 .venv/bin/python -m pod3d run mockup.jpg -t sweater --no-model   # nhanh, bỏ AI upscale
 ```
 
-Mỗi template chỉ dùng được cho **đúng ảnh mockup 3D nó được hiệu chỉnh** (cùng dáng áo, cùng góc chụp, chỉ khác hình in). Ảnh khác dáng, ví dụ áo mặc trên người mẫu, sẽ bị từ chối; khi đó cần tạo template mới (mục dưới). Thêm `--force` để vẫn chạy.
+Mỗi template chỉ dùng được cho **đúng ảnh mockup 3D nó được hiệu chỉnh** (cùng dáng áo, cùng góc chụp, chỉ khác hình in). Ảnh khác dáng, ví dụ áo mặc trên người mẫu, sẽ bị từ chối; khi đó chấm điểm mốc (mục dưới) hoặc tạo template mới. Thêm `--force` để vẫn chạy.
+
+### Ảnh mockup bất kỳ: chấm điểm mốc
+
+Không có file in mẫu thì bấm 8 điểm quanh mỗi mảnh trên ảnh (theo chiều kim đồng hồ, từ góc trên trái):
+
+```bash
+.venv/bin/python -m pod3d mark mockup.jpg -t hoodie   # mở trang chấm điểm trong trình duyệt, bấm Lưu
+.venv/bin/python -m pod3d run mockup.jpg -t hoodie    # tự dùng file mockup.marks.json vừa lưu
+```
+
+Vùng bấm được kéo phẳng ra cả mảnh in; mép và nếp gấp kém chính xác hơn template đã hiệu chỉnh. Ảnh mockup càng lớn càng nét (nên từ 1500 px trở lên).
 
 File in giữ đúng kích thước file mẫu, 300 DPI:
 

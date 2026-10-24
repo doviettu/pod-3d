@@ -6,7 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from . import clean, fill, io, silhouette, upscale
+from . import clean, fill, io, marks, silhouette, upscale
 from .template import Template
 from .unwrap import apply_color, unwrap
 
@@ -19,12 +19,13 @@ def _solid_color(template, panel, mockup):
     return np.median(region.reshape(-1, 3), 0).astype(np.uint8)
 
 
-def make_panel(template, panel, mockup, log=print, use_model=True):
+def make_panel(template, panel, mockup, log=print, use_model=True, m=None):
+    """m: map from clicked marks; the template's color transform belongs to its own mockup."""
     out_w, out_h = panel.size
     if panel.source == "solid":
         c = _solid_color(template, panel, mockup)
         return np.full((out_h, out_w, 3), c, np.uint8), {"color": c.tolist()}
-    work, cov = unwrap(template, panel, mockup)
+    work, cov = unwrap(template, panel, mockup, color=m is None, m=m)
     work = fill.fill(work, cov, log=log, mode="tile" if panel.method == "strip" else "bands")
     work, pal, frac = clean.clean(work)
     log(f"    {panel.name}: {100 * (cov >= 0.5).mean():.0f}% seen on mockup, {100 * frac:.0f}% flat colors")
@@ -40,31 +41,45 @@ class WrongMockup(Exception):
     pass
 
 
-def run(template: Template, mockup_path, out_dir, log=print, use_model=True, fmt="jpg", force=False):
+def run(template: Template, mockup_path, out_dir, log=print, use_model=True, fmt="jpg", force=False,
+        marks_path=None):
+    """marks_path: points clicked on this mockup (python -m pod3d mark); found next to the
+    mockup automatically. With marks, any mockup photo works and calibration is not used."""
     t0 = time.time()
     mockup = io.read(mockup_path)
+    marks_path = marks_path or marks.path_for(mockup_path)
+    clicked = marks.load(marks_path)["panels"] if Path(marks_path).exists() else None
+    if clicked is not None:
+        log(f"  using marks from {marks_path}")
     iou = silhouette.match(template, mockup)
-    if iou is not None and iou < silhouette.MIN_IOU and not force:
+    if clicked is None and iou is not None and iou < silhouette.MIN_IOU and not force:
         raise WrongMockup(
             f"Ảnh mockup không cùng dáng với template '{template.name}' (giống {100 * iou:.0f}%, cần "
             f"{100 * silhouette.MIN_IOU:.0f}%). Kết quả sẽ cắt nhầm người mẫu hoặc nền. Cần hiệu chỉnh "
-            f"một template mới cho dáng này (python -m pod3d calibrate), hoặc thêm --force để vẫn chạy.")
+            f"một template mới cho dáng này (python -m pod3d calibrate), chấm điểm mốc cho ảnh này "
+            f"(python -m pod3d mark), hoặc thêm --force để vẫn chạy.")
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     made = {}
     for panel in template.panels:
         if panel.source == "copy":
             continue
-        if panel.source == "unwrap" and not template.map_path(panel.name).exists():
+        m = None
+        if clicked is not None and panel.source == "unwrap":
+            if panel.name not in clicked:
+                log(f"  {panel.name}: not marked, skipped")
+                continue
+            m = marks.make_map(panel, clicked[panel.name], mockup.shape[1::-1])
+        elif panel.source == "unwrap" and not template.map_path(panel.name).exists():
             log(f"  {panel.name}: template has no map for this panel yet, skipped")
             continue
         log(f"  {panel.name} ...")
-        img, info = make_panel(template, panel, mockup, log, use_model)
+        img, info = make_panel(template, panel, mockup, log, use_model, m)
         made[panel.name] = img
         path = out_dir / f"{panel.name}.{fmt}"
         io.write(path, img, dpi=template.dpi)
     for panel in template.panels:
-        if panel.source == "copy":
+        if panel.source == "copy" and panel.copy_of in made:
             img = made[panel.copy_of]
             if panel.mirror:
                 img = cv2.flip(img, 1)

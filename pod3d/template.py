@@ -18,6 +18,7 @@ class Panel:
     method: str = "match"  # "match": feature matching + flow; "strip": band panel along a curve (sleeves)
     curve: list = None  # strip method: mockup polyline from seam to cuff, normalized
     halfwidth: float = 0.03  # strip method: trusted half width across the curve, normalized
+    hint: str = ""  # marks: where to click, shown on the marking page
 
 
 @dataclass
@@ -59,6 +60,7 @@ def load(name: str) -> Template:
             method=p.get("method", "match"),
             curve=p.get("curve"),
             halfwidth=p.get("halfwidth", 0.03),
+            hint=p.get("hint", ""),
         )
         for p in data["panels"]
     ]

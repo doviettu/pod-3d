@@ -3,7 +3,7 @@ import argparse
 import json
 from pathlib import Path
 
-from . import calibrate, pipeline, template
+from . import calibrate, markui, pipeline, template
 
 
 def _sets_from_dirs(dirs, tpl):
@@ -36,6 +36,10 @@ def main(argv=None):
     r.add_argument("--no-model", action="store_true", help="skip the AI upscaler, Lanczos only")
     r.add_argument("--png", action="store_true", help="write PNG instead of JPG")
     r.add_argument("--force", action="store_true", help="run even if the mockup is not the template's shot")
+    r.add_argument("--marks", help="points clicked with `mark` (default: <mockup>.marks.json if present)")
+    k = sub.add_parser("mark", help="click the panels on a mockup photo, for mockups without calibration")
+    k.add_argument("mockup")
+    k.add_argument("--template", "-t", required=True, choices=template.available())
     c = sub.add_parser("calibrate", help="learn a template from sample folders (mockup + print files)")
     c.add_argument("template")
     c.add_argument("folders", nargs="+")
@@ -45,6 +49,8 @@ def main(argv=None):
         for n in template.available():
             t = template.load(n)
             print(n, json.dumps({p.name: list(p.size) for p in t.panels}))
+    elif a.cmd == "mark":
+        markui.serve(template.load(a.template), a.mockup)
     elif a.cmd == "calibrate":
         t = template.load(a.template)
         calibrate.run(t, _sets_from_dirs(a.folders, t))
@@ -53,7 +59,7 @@ def main(argv=None):
         out = Path(a.out) if a.out else Path(a.mockup).with_name(Path(a.mockup).stem + "_panels")
         try:
             pipeline.run(t, a.mockup, out, use_model=not a.no_model, fmt="png" if a.png else "jpg",
-                         force=a.force)
+                         force=a.force, marks_path=a.marks)
         except pipeline.WrongMockup as e:
             raise SystemExit(str(e))
 

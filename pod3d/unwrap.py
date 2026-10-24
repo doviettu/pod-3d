@@ -24,8 +24,9 @@ def remap_grid(grid, mockup, work_size, step=None, mockup_size=None, interp=cv2.
     return cv2.remap(mockup, mx, my, interp, borderMode=cv2.BORDER_REPLICATE)
 
 
-def unwrap(template, panel, mockup, color=True):
-    m = load_map(template, panel)
+def unwrap(template, panel, mockup, color=True, m=None):
+    """m: a map made elsewhere (marks.make_map); default is the template's calibrated map."""
+    m = m if m is not None else load_map(template, panel)
     ww, wh = (int(v) for v in m["work_size"])
     out = remap_grid(m["grid"], mockup, (ww, wh), int(m["step"]), m["mockup_size"])
     gh, gw = m["cov"].shape
