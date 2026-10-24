@@ -1,0 +1,12 @@
+{
+  "name": "sweater",
+  "dpi": 300,
+  "panels": [
+    {"name": "Front", "size": [6048, 6559], "source": "unwrap", "region": [0.0, 0.08, 0.62, 0.92]},
+    {"name": "Back", "size": [6048, 6559], "source": "unwrap", "region": [0.52, 0.03, 1.0, 0.75]},
+    {"name": "Sleeve", "size": [4720, 5744], "source": "unwrap", "method": "strip", "curve": [[0.083, 0.235], [0.067, 0.467], [0.043, 0.767], [0.037, 0.83]], "halfwidth": 0.043},
+    {"name": "Collar", "size": [4456, 627], "source": "solid", "sample": [0.2, 0.83, 0.45, 0.85]},
+    {"name": "Hem", "size": [10397, 1240], "source": "solid", "sample": [0.2, 0.83, 0.45, 0.85]},
+    {"name": "Wrist", "size": [2478, 1255], "source": "solid", "sample": [0.2, 0.83, 0.45, 0.85]}
+  ]
+}

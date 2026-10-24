@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+models/*.pth
+models/*.pt
+*_panels/
+*_panels.zip
+.DS_Store

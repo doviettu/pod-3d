@@ -1,0 +1,7 @@
+numpy>=1.26
+opencv-python-headless>=4.9
+scipy>=1.11
+pillow>=10.0
+torch>=2.3
+spandrel>=0.4
+spandrel_extra_arches>=0.2

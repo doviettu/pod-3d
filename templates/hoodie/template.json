@@ -1,0 +1,11 @@
+{
+  "name": "hoodie",
+  "dpi": 300,
+  "panels": [
+    {"name": "Front", "size": [5100, 6300], "source": "unwrap", "region": [0.0, 0.15, 0.58, 0.97]},
+    {"name": "Back", "size": [5100, 6300], "source": "unwrap", "region": [0.5, 0.2, 1.0, 0.8]},
+    {"name": "Hood", "size": [1800, 1150], "source": "unwrap", "region": [0.55, 0.0, 0.85, 0.3]},
+    {"name": "Left", "size": [1500, 2100], "source": "unwrap", "region": [0.3, 0.3, 0.6, 0.95]},
+    {"name": "Right", "size": [1500, 2100], "source": "unwrap", "region": [0.0, 0.3, 0.2, 0.95]}
+  ]
+}
