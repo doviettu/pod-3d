@@ -30,20 +30,32 @@ def available():
 
 
 WORK_SIDE = 768  # LaMa keeps structure best near its training size; big holes smear at full size
+STEP = 40  # progressive fill: px (at WORK_SIDE scale) added around the known area per pass
 
 
 def inpaint(img, mask):
-    """img: BGR uint8, mask: bool (True = fill). Fills at reduced size, pastes back upscaled."""
+    """Fill in rings from the known area outwards. LaMa copies texture well into a narrow gap
+    but smears across a wide one, so a wide hole is closed a ring at a time."""
     h, w = img.shape[:2]
     s = min(1.0, WORK_SIDE / max(h, w))
-    if s < 1.0:
-        small = cv2.resize(img, (round(w * s), round(h * s)), interpolation=cv2.INTER_AREA)
-        sm = cv2.resize(mask.astype(np.uint8), small.shape[1::-1], interpolation=cv2.INTER_NEAREST) > 0
-        filled = cv2.resize(_inpaint(small, sm), (w, h), interpolation=cv2.INTER_CUBIC)
+    small = cv2.resize(img, (round(w * s), round(h * s)), interpolation=cv2.INTER_AREA) if s < 1 else img.copy()
+    hole = cv2.resize(mask.astype(np.uint8), small.shape[1::-1], interpolation=cv2.INTER_NEAREST) > 0
+    k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * STEP + 1, 2 * STEP + 1))
+    while hole.any():
+        known = (~hole).astype(np.uint8)
+        ring = (cv2.dilate(known, k) > 0) & hole
+        if not ring.any():
+            ring = hole
+        # LaMa fills the whole hole each pass, but only the ring next to known pixels is kept.
+        filled = _inpaint(small, hole)
+        small[ring] = filled[ring]
+        hole &= ~ring
+    if s < 1:
+        up = cv2.resize(small, (w, h), interpolation=cv2.INTER_CUBIC)
         out = img.copy()
-        out[mask] = filled[mask]
+        out[mask] = up[mask]
         return out
-    return _inpaint(img, mask)
+    return small
 
 
 def _inpaint(img, mask):

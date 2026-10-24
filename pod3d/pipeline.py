@@ -25,7 +25,7 @@ def make_panel(template, panel, mockup, log=print, use_model=True):
         c = _solid_color(template, panel, mockup)
         return np.full((out_h, out_w, 3), c, np.uint8), {"color": c.tolist()}
     work, cov = unwrap(template, panel, mockup)
-    work = fill.fill(work, cov, log=log)
+    work = fill.fill(work, cov, log=log, mode="tile" if panel.method == "strip" else "bands")
     work, pal, frac = clean.clean(work)
     log(f"    {panel.name}: {100 * (cov >= 0.5).mean():.0f}% seen on mockup, {100 * frac:.0f}% flat colors")
     factor = out_w / work.shape[1]
