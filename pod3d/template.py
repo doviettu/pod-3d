@@ -40,6 +40,10 @@ class Template:
     def color_path(self):
         return self.dir / "color.npz"
 
+    @property
+    def silhouette_path(self):
+        return self.dir / "silhouette.png"
+
 
 def load(name: str) -> Template:
     data = json.loads((ROOT / name / "template.json").read_text())

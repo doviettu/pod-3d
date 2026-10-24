@@ -9,7 +9,7 @@ import numpy as np
 from scipy.interpolate import RBFInterpolator
 from scipy.spatial import cKDTree
 
-from . import io
+from . import io, silhouette
 from .template import Template
 
 WORK_LONG_SIDE = 1600  # panels are matched at this size; maps are stored at this size
@@ -229,6 +229,7 @@ def calibrate_color(template: Template, pairs_by_panel, log=print):
 def run(template: Template, sets, log=print):
     """sets: list of dicts {"mockup": path, "<Panel>": path, ...} from the same mockup."""
     loaded = [{k: io.read(v) for k, v in s.items()} for s in sets]
+    silhouette.save(template, loaded[0]["mockup"])
     color_pairs = []
     for panel in template.panels:
         if panel.source != "unwrap":

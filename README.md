@@ -27,6 +27,8 @@ Script cài `uv`, tạo `.venv` (Python 3.12), cài thư viện và tải 2 mode
 .venv/bin/python -m pod3d run mockup.jpg -t sweater --no-model   # nhanh, bỏ AI upscale
 ```
 
+Mỗi template chỉ dùng được cho **đúng ảnh mockup 3D nó được hiệu chỉnh** (cùng dáng áo, cùng góc chụp, chỉ khác hình in). Ảnh khác dáng, ví dụ áo mặc trên người mẫu, sẽ bị từ chối; khi đó cần tạo template mới (mục dưới). Thêm `--force` để vẫn chạy.
+
 File in giữ đúng kích thước file mẫu, 300 DPI:
 
 | Template | Mảnh (px) |

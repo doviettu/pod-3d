@@ -6,7 +6,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from . import clean, fill, io, upscale
+from . import clean, fill, io, silhouette, upscale
 from .template import Template
 from .unwrap import apply_color, unwrap
 
@@ -36,9 +36,19 @@ def make_panel(template, panel, mockup, log=print, use_model=True):
     return big, {"seen": float((cov >= 0.5).mean()), "flat": float(frac)}
 
 
-def run(template: Template, mockup_path, out_dir, log=print, use_model=True, fmt="jpg"):
+class WrongMockup(Exception):
+    pass
+
+
+def run(template: Template, mockup_path, out_dir, log=print, use_model=True, fmt="jpg", force=False):
     t0 = time.time()
     mockup = io.read(mockup_path)
+    iou = silhouette.match(template, mockup)
+    if iou is not None and iou < silhouette.MIN_IOU and not force:
+        raise WrongMockup(
+            f"Ảnh mockup không cùng dáng với template '{template.name}' (giống {100 * iou:.0f}%, cần "
+            f"{100 * silhouette.MIN_IOU:.0f}%). Kết quả sẽ cắt nhầm người mẫu hoặc nền. Cần hiệu chỉnh "
+            f"một template mới cho dáng này (python -m pod3d calibrate), hoặc thêm --force để vẫn chạy.")
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     made = {}

@@ -35,6 +35,7 @@ def main(argv=None):
     r.add_argument("--out", "-o", help="output folder (default: next to the mockup)")
     r.add_argument("--no-model", action="store_true", help="skip the AI upscaler, Lanczos only")
     r.add_argument("--png", action="store_true", help="write PNG instead of JPG")
+    r.add_argument("--force", action="store_true", help="run even if the mockup is not the template's shot")
     c = sub.add_parser("calibrate", help="learn a template from sample folders (mockup + print files)")
     c.add_argument("template")
     c.add_argument("folders", nargs="+")
@@ -50,7 +51,11 @@ def main(argv=None):
     else:
         t = template.load(a.template)
         out = Path(a.out) if a.out else Path(a.mockup).with_name(Path(a.mockup).stem + "_panels")
-        pipeline.run(t, a.mockup, out, use_model=not a.no_model, fmt="png" if a.png else "jpg")
+        try:
+            pipeline.run(t, a.mockup, out, use_model=not a.no_model, fmt="png" if a.png else "jpg",
+                         force=a.force)
+        except pipeline.WrongMockup as e:
+            raise SystemExit(str(e))
 
 
 if __name__ == "__main__":
