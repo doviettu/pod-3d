@@ -149,7 +149,7 @@ Chạy tự động cho mọi job, ngay sau bước tìm vùng art, trước khi
 - [x] 2. SQLite jobs + hàng đợi chung trên máy chủ sẵn có (chưa FastAPI) → Verify: `curl 127.0.0.1:8765/api/status` trả 200, job cũ hiện trong lịch sử.
 - [x] 3. Trang chính 2 tab 2D / 3D, ô nạp ảnh/link/dán → Verify: dán link ảnh, thấy ảnh xem trước.
 - [x] 4. Pipeline 2D (tìm vùng, phẳng, bỏ nền, phóng to, canvas 4500 × 5400) → Verify: 5 ảnh mẫu ra PNG đúng cỡ, có alpha, 300 DPI; 1 ảnh trước + sau cạnh nhau ra đủ `front.png` và `back.png`.
-- [ ] 4b. Bộ test vàng + 5 kỹ thuật ưu tiên trong `docs/local-quality.md` → Verify: bảng điểm SSIM/ΔE trước-sau trên 3 bộ mẫu, chỉ bật kỹ thuật tăng điểm.
+- [~] 4b. (Đã có bộ test vàng + mốc + kỹ thuật 1) Bộ test vàng + 5 kỹ thuật ưu tiên trong `docs/local-quality.md` → Verify: bảng điểm SSIM/ΔE trước-sau trên 3 bộ mẫu, chỉ bật kỹ thuật tăng điểm.
 - [x] 5. Trình xem OpenSeadragon + so sánh trước/sau → Verify: zoom tới pixel trên mảnh 6048 × 6559 mượt.
 - [ ] 6. Thư viện kiểu dáng + nhận dáng tự động → Verify: ảnh sweater/hoodie mẫu được nhận đúng kiểu, ảnh lạ hỏi chọn tay.
 - [ ] 7. Nối 3D Local và 3D AI vào luồng mới (khuôn prompt, cache, sheet 1 lệnh, trần ngân sách) → Verify: mockup Home Alone ra đủ 6 mảnh theo cả 2 chế độ; chạy AI lần 2 cùng ảnh không phát sinh lệnh mới.

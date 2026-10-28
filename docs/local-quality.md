@@ -81,3 +81,42 @@ Ngày: 28/10/2026. Mọi kỹ thuật dưới đây đều chạy trên Mac mini
 - [OpenModelDB: 4x-HFA2k](https://openmodeldb.info/models/4x-HFA2k), [4x-AnimeSharp](https://openmodeldb.info/models/4x-AnimeSharp)
 - [Learning Intrinsic Images for Clothing](https://arxiv.org/abs/2111.08521)
 - [Pattern Guided UV Recovery for Video Garment Texturing](https://arxiv.org/abs/2407.10137): dùng hoạ tiết vải để tìm bản đồ UV, ý tưởng gần với bước hiệu chỉnh của mình
+
+## Kết quả đo (bộ test vàng)
+
+Chạy: `.venv/bin/python scripts/golden.py samples/sweater_streetfighter:sweater samples/sweater_homealone:sweater samples/hoodie_jack:hoodie`. So ở kích thước làm việc (trước phóng to). SSIM càng gần 1 càng giống; ΔE dưới ~5 là mắt khó thấy. "Thấy" là vùng có trên mockup, "đoán" là vùng phải tự lấp.
+
+Lưu ý: khuôn sweater được hiệu chỉnh từ chính các bộ mẫu này, nên điểm vùng "thấy" của sweater lạc quan hơn thực tế. Dùng bảng để so trước/sau, không phải điểm tuyệt đối.
+
+### Mốc 28/10
+
+| Mẫu | Mảnh | Thấy | SSIM | SSIM thấy | SSIM đoán | ΔE | ΔE thấy | ΔE đoán |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Street Fighter | Front | 50% | 0.790 | 0.947 | 0.634 | 12.4 | 2.9 | 21.8 |
+| Street Fighter | Back | 39% | 0.724 | 0.917 | 0.599 | 16.1 | 3.6 | 24.3 |
+| Street Fighter | Sleeve | 16% | 0.406 | 0.353 | 0.417 | 35.6 | 41.8 | 34.4 |
+| Home Alone | Front | 50% | 0.807 | 0.872 | 0.742 | 11.0 | 6.0 | 16.0 |
+| Home Alone | Back | 39% | 0.716 | 0.805 | 0.658 | 13.7 | 7.1 | 18.0 |
+| Home Alone | Sleeve | 16% | 0.559 | 0.554 | 0.559 | 21.7 | 25.8 | 20.9 |
+| Jack hoodie | Front | 41% | 0.734 | 0.944 | 0.585 | 23.1 | 3.5 | 37.0 |
+| Jack hoodie | Back | 36% | 0.595 | 0.758 | 0.503 | 26.8 | 4.9 | 39.3 |
+| Jack hoodie | Left | 11% | 0.348 | 0.887 | 0.279 | 46.8 | 3.3 | 52.3 |
+| Jack hoodie | Right | 0% | 0.394 | 0.862 | 0.394 | 55.2 | 39.2 | 55.2 |
+
+Đọc bảng: vùng nhìn thấy trên thân đã tốt (ΔE 3–7). Điểm yếu là **vùng phải đoán** (ΔE 16–55) và **tay áo** (ngay cả vùng thấy cũng lệch).
+
+### Kỹ thuật 1: loại nền trắng của ảnh khỏi vùng "thấy" (đã bật cho tay áo)
+
+| Mảnh | ΔE trước → sau | SSIM trước → sau |
+| --- | --- | --- |
+| Street Fighter Sleeve | 35.6 → **32.4** | 0.406 → **0.422** |
+| Home Alone Sleeve | 21.7 → **18.4** | 0.559 → **0.587** |
+| Jack hoodie Front (nếu bật cho thân) | 23.1 → 25.7 (tệ hơn) | 0.734 → 0.702 |
+
+Bật cho tay áo (`strip`/`tube`), tắt cho thân vì hình in màu trắng chạm viền áo bị loại nhầm. Các mảnh khác giữ nguyên điểm.
+
+### Việc đo tiếp
+
+1. Tay áo: vùng "thấy" lệch nhiều (ΔE 20–36) → kiểm tra lại đường cong `curve` của khuôn sweater trước khi thử kỹ thuật lấp.
+2. Vùng đoán của thân: lát theo chu kỳ ngang từng dải (F1), dựng lại lưới pixel (D1).
+3. Thêm ảnh 2D có file gốc vào bộ test để đo pipeline 2D.
