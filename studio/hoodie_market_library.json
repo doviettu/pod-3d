@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "researched_on": "2026-10-28",
+  "purpose": "market-reference-not-sewing-pattern",
+  "items": [
+    {
+      "id": "ind-raglan",
+      "label": "Hoodie chui đầu tay raglan ôm",
+      "brand": "Independent Trading Company",
+      "product_title": "Raglan Sleeve Pullover Hood",
+      "product_url": "https://www.independenttradingco.com/products/raglan-sleeve-pullover-hood",
+      "shopify_evidence_url": "https://www.independenttradingco.com/products/raglan-sleeve-pullover-hood",
+      "evidence_note": "URL ảnh mặt trước được quan sát từ gallery trang sản phẩm chính hãng qua /cdn/shop/; công cụ web mở được ảnh. Ảnh thumbnail rộng 160 px.",
+      "style_tags": [
+        "pullover",
+        "raglan",
+        "slim-fit"
+      ],
+      "notes": "Hãng mô tả tay raglan, dáng ôm, mũ lót jersey và túi trước; tham khảo cấu tạo, không suy ra đường rập.",
+      "image_url": "https://www.independenttradingco.com/cdn/shop/files/Independent_Trading_Co._IND40RP_Charcoal_Heather-_Black_Front_High.jpg?v=1745363522&width=160",
+      "manufacturing_ready": false
+    },
+    {
+      "id": "ind-heavy-zip",
+      "label": "Hoodie khóa kéo vải dày",
+      "brand": "Independent Trading Company",
+      "product_title": "10oz. Heavyweight Zip Hood",
+      "product_url": "https://www.independenttradingco.com/products/10oz-heavyweight-zip-hood",
+      "shopify_evidence_url": "https://www.independenttradingco.com/products/10oz-heavyweight-zip-hood",
+      "evidence_note": "URL ảnh người mẫu góc bên màu Forest Camo được quan sát từ gallery chính hãng qua /cdn/shop/; mở ảnh trả Cache miss, chưa xác minh tải/render. Thumbnail 160 px.",
+      "style_tags": [
+        "full-zip",
+        "heavyweight",
+        "generous-fit"
+      ],
+      "notes": "Dáng rộng theo mô tả hãng; mũ lót fleece, khóa kéo toàn thân, bo tay và gấu.",
+      "image_url": "https://www.independenttradingco.com/cdn/shop/files/Independent_Trading_Co._IND4000Z_Forest_Camo_Side_High_Model.jpg?v=1774997905&width=160",
+      "manufacturing_ready": false
+    },
+    {
+      "id": "ind-boulevard",
+      "label": "Hoodie dáng hộp vai rơi",
+      "brand": "Independent Trading Company",
+      "product_title": "Boulevard 330gm Heavyweight Pullover Hood",
+      "product_url": "https://www.independenttradingco.com/products/boulevard-330gm-heavyweight-pullover-hood/",
+      "shopify_evidence_url": "https://www.independenttradingco.com/products/boulevard-330gm-heavyweight-pullover-hood/",
+      "evidence_note": "URL ảnh mặt sau Pigment Black được quan sát từ gallery chính hãng qua /cdn/shop/; mở ảnh trả Cache miss, chưa xác minh tải/render. Thumbnail 160 px.",
+      "style_tags": [
+        "pullover",
+        "oversized",
+        "boxy",
+        "drop-shoulder",
+        "heavyweight"
+      ],
+      "notes": "Hãng xác nhận dáng hộp, vai rơi, không dây rút và mũ hai lớp; không dựng hình học rập từ ảnh.",
+      "image_url": "https://www.independenttradingco.com/cdn/shop/files/Independent_Trading_Co._IND330BLV_Pigment_Black_Back_Highcopy.jpg?v=1776192428&width=160",
+      "manufacturing_ready": false
+    },
+    {
+      "id": "ind-crop",
+      "label": "Hoodie nữ crop nhẹ",
+      "brand": "Independent Trading Company",
+      "product_title": "Women's Lightweight Crop Hood",
+      "product_url": "https://www.independenttradingco.com/products/womens-lightweight-crop-hood",
+      "shopify_evidence_url": "https://www.independenttradingco.com/products/womens-lightweight-crop-hood",
+      "evidence_note": "URL ảnh mặt trước màu trắng được quan sát từ gallery chính hãng qua /cdn/shop/; công cụ web mở được ảnh. Thumbnail 160 px.",
+      "style_tags": [
+        "pullover",
+        "cropped",
+        "lightweight"
+      ],
+      "notes": "Thân ngắn tại eo theo mô tả hãng, dây rút dẹt và bo cổ tay; không có thông số cắt may.",
+      "image_url": "https://www.independenttradingco.com/cdn/shop/files/Independent_Trading_Co._AFX64CRP_White_Front_High.jpg?v=1745365816&width=160",
+      "manufacturing_ready": false
+    },
+    {
+      "id": "ind-loopback",
+      "label": "Hoodie chui đầu vải da cá nhẹ",
+      "brand": "Independent Trading Company",
+      "product_title": "Unisex Lightweight Loopback Terry Hooded Pullover",
+      "product_url": "https://www.independenttradingco.com/products/unisex-lightweight-loopback-terry-hooded-pullover/",
+      "shopify_evidence_url": "https://www.independenttradingco.com/products/unisex-lightweight-loopback-terry-hooded-pullover/",
+      "evidence_note": "URL ảnh mặt trước Athletic Heather được quan sát từ gallery chính hãng qua /cdn/shop/; công cụ web mở được ảnh. Thumbnail 160 px.",
+      "style_tags": [
+        "pullover",
+        "loopback-terry",
+        "lightweight",
+        "unisex"
+      ],
+      "notes": "Vải loopback terry nhẹ, dây rút đôi đầu kim loại và bo tay/gấu theo hãng; khác kết cấu fleece chải lông.",
+      "image_url": "https://www.independenttradingco.com/cdn/shop/files/Independent_Trading_Co._SS1000_Athletic_Heather_Front_High_29022f87-699b-49d8-b5b0-dfea79c9d496.jpg?v=1745446249&width=160",
+      "manufacturing_ready": false
+    },
+    {
+      "id": "represent-zip",
+      "label": "Hoodie zip oversized đồ họa",
+      "brand": "Represent",
+      "product_title": "Represent Owners Club Zip Hoodie - Black",
+      "product_url": "https://representclo.com/products/represent-owners-club-zip-hoodie-black",
+      "shopify_evidence_url": "https://representclo.com/products/represent-owners-club-zip-hoodie-black",
+      "evidence_note": "Trang có bảng kích thước cdn.shopify.com. Gallery dùng proxy scdn.speedsize.com chứa URL /cdn/shop/ mã hóa; URL gốc mở bằng công cụ web không truy cập được, giữ image_url=null; chưa xác minh tải/render.",
+      "style_tags": [
+        "full-zip",
+        "oversized",
+        "heavyweight",
+        "graphic"
+      ],
+      "notes": "Hãng mô tả phom rộng vuông, cotton jersey dày và hình in ngực/lưng; trang hiển thị trạng thái bán không đồng nhất, không xác nhận tồn kho.",
+      "image_url": null,
+      "manufacturing_ready": false
+    },
+    {
+      "id": "gymshark-crest",
+      "label": "Hoodie thể thao dáng ôm",
+      "brand": "Gymshark",
+      "product_title": "Crest Hoodie",
+      "product_url": "https://www.gymshark.com/products/gymshark-crest-hoodie-black-ss22",
+      "shopify_evidence_url": "https://www.gymshark.com/products/gymshark-crest-hoodie-black-ss22",
+      "evidence_note": "Ảnh sản phẩm Crest Hoodie trong gallery được phục vụ từ cdn.shopify.com.",
+      "style_tags": [
+        "pullover",
+        "athletic",
+        "slim-fit",
+        "brushed-fleece"
+      ],
+      "notes": "Hãng định vị cho tập tạ và nghỉ ngơi; fleece chải mặt trong, mũ dây rút và túi mở hai bên. Không khẳng định tay raglan.",
+      "image_url": "https://cdn.shopify.com/s/files/1/0156/6146/files/images-A2A4G_BBBB_1_3840x.jpg?v=1762966577",
+      "manufacturing_ready": false
+    },
+    {
+      "id": "oodie-avocado",
+      "label": "Hoodie chăn rộng lót sherpa",
+      "brand": "The Oodie",
+      "product_title": "Avocado",
+      "product_url": "https://us.theoodie.com/products/avocado-oodie",
+      "shopify_evidence_url": "https://us.theoodie.com/products/avocado-oodie",
+      "evidence_note": "URL ảnh Avocado trên người mẫu được quan sát từ gallery chính hãng qua /cdn/shop/; mở ảnh trả Cache miss, chưa xác minh tải/render. Trang còn có tài nguyên cdn.shopify.com.",
+      "style_tags": [
+        "hooded-blanket",
+        "oversized",
+        "sherpa-lined",
+        "all-over-graphic"
+      ],
+      "notes": "Thuộc dòng Oodie™ Original; hãng mô tả chăn mặc có mũ, lót sherpa, túi lớn. Họa tiết bơ quan sát trên ảnh bán lẻ; không xác nhận kỹ thuật in AOP hay sơ đồ ráp. Trang hiển thị hết hàng.",
+      "image_url": "https://us.theoodie.com/cdn/shop/files/AvocadoOodieOriginal_OSFM_2181.jpg?v=1788226691&width=416",
+      "manufacturing_ready": false
+    }
+  ]
+}

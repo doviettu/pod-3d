@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>POD Studio · Xưởng thiết kế local</title>
+<style>
+:root{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#233448;background:#f4f6f8;line-height:1.5;accent-color:#2463dc}
+*{box-sizing:border-box}
+body{margin:0}
+button,input,select,textarea{font:inherit}
+button,input,select,textarea{border:1px solid #c8d2df;border-radius:9px;padding:10px 12px}
+button{cursor:pointer;background:#fff;color:#233448;font-weight:600}
+button:hover:not(:disabled){background:#edf3ff}
+button:disabled{opacity:.55;cursor:not-allowed}
+button.primary{background:#2463dc;color:white;border-color:#2463dc}
+button.primary:hover:not(:disabled){background:#184cb5}
+input:not([type=checkbox]),select,textarea{width:100%;background:white;color:inherit}
+textarea{resize:vertical}
+input[type=checkbox]{width:18px;height:18px;flex-shrink:0}
+a{color:#1756bd;text-underline-offset:3px}
+a:hover{text-decoration-thickness:2px}
+:focus-visible{outline:3px solid #2563eb;outline-offset:3px}
+[hidden]{display:none!important}
+header{background:#fff;border-bottom:1px solid #e0e6ed}
+header>div,main{max-width:1180px;margin:auto;padding:22px 28px}
+.bar,.row{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.brand{font-size:19px;font-weight:750;letter-spacing:-.5px}
+.mark{display:inline-grid;place-items:center;background:#2463dc;color:white;border-radius:10px;width:34px;height:34px;margin-right:9px;font-size:15px}
+.pill{display:inline-block;border-radius:30px;padding:5px 11px;font-size:12px;font-weight:650;background:#eaf3ef;color:#24664c}
+.muted,small{color:#5e6e82}
+small{display:block;font-size:12px}
+.eyebrow{color:#1756bd;text-transform:uppercase;font-size:11px;font-weight:750;letter-spacing:1.8px;margin:10px 0}
+h1{font-size:clamp(26px,4vw,36px);line-height:1.2;letter-spacing:-1.2px;margin:9px 0 12px}
+h2{font-size:18px;letter-spacing:-.3px;margin:0 0 18px}
+h3{font-size:14px;margin:18px 0 9px}
+p{margin:8px 0 16px}
+.intro{margin:12px 0 26px}
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:22px;align-items:start}
+.card{background:#fff;border:1px solid #e0e6ed;border-radius:16px;padding:24px;box-shadow:0 3px 14px #23344804;margin-bottom:22px;min-width:0}
+.step{font-size:11px;background:#edf3ff;color:#1756bd;border-radius:6px;padding:4px 7px;margin-right:8px}
+label,.label{display:block;font-size:13px;font-weight:650;margin:15px 0 7px}
+.upload{border:1.5px dashed #acbfd9;background:#f8faff;border-radius:12px;padding:17px}
+.upload label{margin:0 0 10px}
+.check{display:flex;align-items:center;gap:9px;font-weight:500;margin:12px 0}
+.check input{margin:0}
+.note{background:#f0f6ff;border:1px solid #dce9fd;padding:12px;border-radius:9px;font-size:13px}
+.warning{background:#fff7e7;border-color:#f1dba7;color:#73521d}
+.columns{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+fieldset{border:0;padding:0;margin:0}
+fieldset legend{font-size:13px;font-weight:650;padding-top:12px}
+fieldset:disabled{opacity:.55}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:18px}
+.actions button{flex:1}
+.review-layer{border-top:1px solid #e0e6ed;margin-top:14px;padding-top:6px}
+.review-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.review-fields label{margin:7px 0 3px;font-size:12px}
+#manual-review img{height:240px}
+#manual-review fieldset:disabled{opacity:.65}
+#review-message[data-error=true]{color:#9c3224}
+#notice{padding:12px 16px;border-radius:10px;background:#edf3ff;border:1px solid #c9dcfc;margin-bottom:20px;overflow-wrap:anywhere}
+#notice[data-error=true]{background:#fff0ee;color:#9c3224;border-color:#efc5bf}
+.empty{text-align:center;padding:34px 12px;color:#67778a;background:#fafbfd;border:1px dashed #d9e1ea;border-radius:11px}
+.empty strong{display:block;color:#34465e;margin-bottom:6px}
+.preview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+figure{margin:0;min-width:0}
+figure img{display:block;width:100%;height:210px;object-fit:contain;background:#f5f7fa;border:1px solid #e1e6ed;border-radius:10px}
+#garment-proof img{height:auto;max-height:560px}
+figcaption{font-size:12px;margin:6px 0 12px;color:#5e6e82;overflow-wrap:anywhere}
+#source-preview{max-height:160px;width:100%;object-fit:contain;margin-top:12px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:230px;overflow:auto;background:#f6f8fa;border-radius:9px;padding:12px;font-size:12px}
+details summary{cursor:pointer;font-size:13px;font-weight:600}
+#job-error{color:#a13224;overflow-wrap:anywhere}
+.downloads{display:flex;flex-wrap:wrap;gap:8px}
+.downloads a{display:inline-block;padding:8px 11px;border:1px solid #cbd9ed;border-radius:8px;background:#f5f9ff;font-size:13px;overflow-wrap:anywhere}
+.market-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:14px}.market-item{padding:12px;border:1px solid #dde4ee;border-radius:10px}.market-item img{width:100%;height:170px;object-fit:contain;background:#f6f7f9;border-radius:7px}.market-item h3{font-size:15px;margin:10px 0 6px}.market-item small{display:block;margin:6px 0}.market-item a{font-size:13px}
+.runtime{border-top:1px solid #e5eaf0;padding-top:13px;font-size:12px;overflow-wrap:anywhere}
+footer{font-size:12px;color:#63748a;text-align:center;padding:4px 20px 28px}
+#job-meta,#template-info{overflow-wrap:anywhere}
+#job-status[data-state=failed],#job-status[data-state=interrupted]{background:#fff0ee;color:#9c3224}
+#job-status[data-state=running],#job-status[data-state=queued]{background:#edf3ff;color:#1756bd}
+@media(max-width:760px){header>div,main{padding:18px}
+.grid{grid-template-columns:1fr;gap:0}
+.card{padding:19px}
+.bar{align-items:flex-start}
+.preview-grid img{height:170px}
+.columns{gap:10px}
+.intro{margin-bottom:22px}
+}
+@media(prefers-reduced-motion:no-preference){button,a{transition:background .15s}
+}
+</style>
+</head>
+<body>
+<header><div class="bar"><div class="brand"><span class="mark" aria-hidden="true">P</span>POD Studio</div><div class="row"><span id="access-mode" class="pill">● Không gian localhost</span><form id="online-logout" action="/logout" method="post" hidden><button type="submit">Đăng xuất</button></form></div></div></header>
+<main>
+<div class="intro"><p class="eyebrow">Xưởng thiết kế của bạn</p><h1>Từ ý tưởng đến bản in.</h1><p class="muted">Chuẩn bị panel, nâng chất lượng và tải bộ in ngay trên máy của bạn.</p></div>
+<p class="note" aria-label="Quy trình thiết kế">Mockup → Phục hồi artwork 2D → Duyệt chữ / logo → Ghép rập → Xem trên áo → Xuất tệp</p>
+<div id="notice" role="status" aria-live="polite" hidden></div>
+<div class="grid"><div>
+<section class="card" aria-labelledby="create-title">
+<h2 id="create-title"><span class="step">01</span>Tạo bộ thiết kế</h2>
+<form id="job-form">
+<div class="upload"><label for="image">Ảnh thiết kế gốc</label><input id="image" type="file" accept="image/jpeg,image/png,image/webp" required aria-describedby="file-help"><small id="file-help">JPEG, PNG hoặc WebP · Tối đa 32 MB</small><img id="source-preview" alt="Ảnh thiết kế gốc đã chọn" hidden></div>
+<div class="actions"><button id="detect-template" type="button" disabled>Nhận diện mẫu áo trên máy</button></div><p id="detection-status" role="status" aria-live="polite">Tải ảnh để tự chọn mẫu khi khớp rõ. Không gọi API có phí.</p>
+<label for="template">Mẫu sản phẩm</label><select id="template" required disabled><option value="">Đang tải mẫu…</option></select><small id="template-info"></small><p id="template-note" class="note warning" hidden></p><figure id="template-reference" hidden><img id="template-reference-image" alt="Ảnh tham chiếu bố cục mẫu đang chọn" style="max-height:210px;object-fit:contain"><figcaption id="template-reference-label"></figcaption></figure>
+<label class="check"><input id="upscale" type="checkbox" checked aria-describedby="upscale-help"> <span id="upscale-label">Nâng chất lượng bằng mô hình local (AI upscale)</span></label><small id="upscale-help">Xử lý trên máy, không gọi OpenAI.</small>
+<label class="check"><input id="use-reference" type="checkbox" checked> Ưu tiên bộ artwork gốc nếu khớp ảnh đã gửi</label><small>Khớp chính xác mới dùng bộ gốc; không coi đó là kết quả AI suy ngược. Tắt khi muốn thử khả năng phục hồi.</small>
+<label class="check"><input id="openai" type="checkbox"> Dùng OpenAI để dựng lại artwork · Có phí</label>
+<fieldset id="panels" disabled><legend>Panel gửi đến OpenAI · Tối đa 3</legend><div class="row" style="justify-content:flex-start;flex-wrap:wrap"><label class="check"><input id="front" type="checkbox"> Front</label><label class="check"><input id="back" type="checkbox"> Back</label><label class="check"><input id="sleeve" type="checkbox"> Tay áo · Sleeve</label><label class="check"><input id="hood" type="checkbox"> Mũ · Hood</label><label class="check"><input id="left" type="checkbox"> Tay trái · Left</label><label class="check"><input id="right" type="checkbox"> Tay phải · Right</label></div></fieldset>
+<label for="design-notes">Ghi chú thiết kế (tùy chọn)</label><textarea id="design-notes" rows="3" maxlength="2000" aria-describedby="design-notes-help" placeholder="Màu sắc, họa tiết, bố cục cần giữ…"></textarea><small id="design-notes-help">Tối đa 2.000 ký tự; bổ sung vào yêu cầu dựng artwork khi dùng OpenAI. Chữ và logo được phục hồi bằng lớp riêng khi duyệt.</small>
+<details><summary>Mô tả thiết kế chung cho các mảnh</summary><p class="muted">Kế hoạch dùng chung màu, họa tiết và ghi chú; phần chưa có bằng chứng vẫn chờ duyệt.</p><label for="design-data-file">Nạp bản mô tả JSON đã chuẩn bị (tùy chọn)</label><input id="design-data-file" type="file" accept="application/json,.json"><button id="design-plan-button" type="button" style="margin-top:10px">Xem kế hoạch và yêu cầu OpenAI · Không có phí</button><p id="design-plan-summary" role="status"></p><div id="design-plan-download"></div><details id="design-prompts" hidden><summary>Yêu cầu sẽ gửi OpenAI</summary><pre id="design-prompt-text" tabindex="0"></pre></details></details>
+<p id="estimate" class="note">Chế độ local · Không phát sinh phí OpenAI.</p>
+<p id="paid-warning" class="note warning" hidden>OpenAI dựng artwork từ mockup gốc và hướng dẫn bố cục, được yêu cầu không tạo chữ / logo. Quy trình này không bảo đảm phục hồi chính xác. Hãy thêm chữ / logo bằng lớp riêng và tự so sánh font trong thư viện DaFont bên dưới. Mỗi panel được chọn có phí theo token ảnh và văn bản; không có báo giá cố định mỗi ảnh, không tự thử lại.</p>
+<button id="submit-job" class="primary" type="submit" style="width:100%" disabled>Tạo bản nháp local</button><small style="margin-top:10px">Bản local là bản nháp, cần duyệt thủ công trước khi in. Một worker xử lý tuần tự.</small>
+</form></section>
+<section class="card" id="hoodie-market-library"><details><summary><strong>Thư viện kiểu hoodie trên Shopify</strong></summary><p class="muted">Tham khảo hãng, phom và cấu tạo. Ảnh bán lẻ chưa phải rập hoặc file in; không tự gán vào mẫu đã hiệu chuẩn.</p><p id="market-status" role="status">Đang tải thư viện…</p><label for="market-search">Tìm hãng hoặc kiểu hoodie</label><input id="market-search" type="search" placeholder="Ví dụ: oversized, zip, raglan…"><div class="columns"><div><label for="market-brand">Thương hiệu</label><select id="market-brand"><option value="">Tất cả hãng</option></select></div><div><label for="market-style">Kiểu dáng</label><select id="market-style"><option value="">Tất cả kiểu</option></select></div></div><div id="market-items" class="market-grid"></div></details></section>
+<section class="card" aria-labelledby="settings-title"><h2 id="settings-title">Cài đặt OpenAI</h2>
+<p id="key-state" class="muted">Đang kiểm tra cấu hình…</p><form id="settings-form">
+<label for="api-key">API key <span class="muted">· để trống để giữ key hiện tại</span></label><input id="api-key" type="password" autocomplete="new-password" spellcheck="false" autocapitalize="none" aria-describedby="key-help"><small id="key-help">Nhập key để bật OpenAI. Key chỉ gửi tới máy chủ local khi lưu.</small>
+<div class="columns"><div><label for="model">Mô hình</label><select id="model"><option value="gpt-image-2.5-flare" selected>GPT Image 2.5 Flare</option><option value="gpt-image-2.5-sunburst">GPT Image 2.5 Sunburst</option></select></div><div><label for="image-size">Kích thước ảnh</label><select id="image-size"><option selected>1K</option><option>2K</option></select></div></div>
+<label for="quality">Chất lượng ảnh</label><select id="quality"><option value="low">Thấp</option><option value="medium" selected>Trung bình</option><option value="high">Cao</option></select>
+<div class="actions"><button id="save-settings" type="submit" disabled>Lưu cài đặt</button><button id="check-key" type="button" disabled>Kiểm tra kết nối</button></div><small style="margin-top:10px">Lưu không tạo ảnh. Kiểm tra chỉ đọc metadata, không tính phí tạo ảnh; dùng cấu hình đã lưu.</small></form>
+<p id="runtime" class="runtime">Đang tải trạng thái máy…</p></section>
+</div><div>
+<section class="card" aria-labelledby="result-title"><div class="row"><h2 id="result-title"><span class="step">02</span>Kết quả &amp; bản xem trước</h2><button id="refresh" type="button" aria-label="Làm mới trạng thái">↻ Làm mới</button></div>
+<label for="history">Lịch sử công việc</label><select id="history"><option value="">Chưa có công việc</option></select>
+<div id="empty" class="empty" style="margin-top:18px"><strong>Sẵn sàng cho thiết kế đầu tiên</strong>Chọn ảnh và mẫu để bắt đầu. Kết quả sẽ xuất hiện tại đây.</div>
+<div id="job-detail" hidden><div class="row" style="margin-top:20px"><h3 id="job-name" style="margin:0"></h3><span id="job-status" class="pill" role="status"></span></div><p id="job-meta" class="muted"></p><p id="job-error" role="alert" hidden></p>
+<p id="review" class="note warning" hidden>Ảnh AI cần duyệt thủ công: kiểm tra chữ, logo, màu sắc, đường may và bố cục trước khi in.</p>
+<p id="source-provenance" class="note" hidden></p><p id="coverage-summary" class="note warning" hidden></p>
+<div id="previews" class="preview-grid"></div><div id="no-preview" class="empty">Bản xem trước sẽ có khi xử lý xong.</div>
+<h3>Bản nháp local</h3><div id="local-downloads" class="downloads"></div><small>ZIP local để đối chiếu; chưa phải bộ đã duyệt để in.</small>
+<div id="ai-download-section" hidden><h3 id="ai-download-title">Bộ ảnh AI · Cần duyệt</h3><div id="ai-downloads" class="downloads"></div></div>
+<div id="job-actions"><h3>Xem trên áo &amp; xuất bộ đã duyệt</h3><p id="job-review-summary" class="muted"></p><div class="actions"><button id="assembly-proof" type="button" disabled>Đối chiếu đủ các mảnh</button><button id="garment-preview" type="button" disabled>Xem áo · 2D hiệu chỉnh</button><button id="approved-export" type="button" disabled>Tạo ZIP đã duyệt để in</button></div><small>Chạy trên máy, không gọi API có phí. Hình dung áo 2D đã hiệu chỉnh, không phải 3D thật. Duyệt đủ các mảnh, tạo bảng đối chiếu và bản xem trên áo cùng phiên bản, rồi xuất bộ đã duyệt. Bảng mép canvas giúp kiểm tra bố cục, chưa xác nhận dung sai may thực tế.</small><p id="job-action-message" role="status" aria-live="polite"></p><figure id="assembly-proof-display" hidden><img id="assembly-proof-image" alt="Bảng đối chiếu các mảnh và mép canvas"><figcaption id="assembly-proof-caption"></figcaption></figure><figure id="garment-proof" hidden><img id="garment-proof-image" alt="Bản kiểm tra artwork đã lưu trên áo 2D"><figcaption id="garment-proof-caption"></figcaption></figure><div id="job-action-downloads" class="downloads"></div></div>
+<details style="margin-top:18px"><summary>Nhật ký xử lý</summary><pre id="logs" tabindex="0" aria-label="Nhật ký xử lý"></pre></details><details style="margin-top:12px"><summary>Tệp khác</summary><div id="other-downloads" class="downloads" style="margin-top:10px"></div></details></div>
+</section>
+<section id="manual-review" class="card" aria-labelledby="manual-review-title" hidden>
+<h2 id="manual-review-title">Duyệt chữ &amp; logo</h2>
+<p class="muted">Chỉnh chữ/logo và xuất PSD trên máy. Chỉ nút phục hồi OpenAI được ghi rõ có phí. Phục hồi chữ / logo bằng lớp riêng; tự đối chiếu font với ảnh gốc qua thư viện &amp; DaFont bên dưới.</p>
+<p id="review-message" role="status" aria-live="polite"></p>
+<form id="review-form"><label for="review-panel">Mảnh cần duyệt</label><select id="review-panel"></select>
+<fieldset id="review-controls" disabled><label for="review-source">Ảnh nền</label><select id="review-source"><option value="local">Bản local</option><option value="openai">Bản OpenAI đã có</option></select>
+<p id="review-size" class="muted"></p>
+<div class="preview-grid"><figure><img id="review-original" alt="Ảnh nền của mảnh đang duyệt"><figcaption>Ảnh nền để đối chiếu</figcaption></figure><figure id="review-proof" hidden><img id="review-preview" alt="Bản kiểm tra chữ và logo đã lưu"><figcaption id="review-proof-label">Bản kiểm tra đã lưu</figcaption></figure></div>
+<p class="note warning">Nếu ảnh nền còn chữ / logo cũ, hãy che vùng cũ hoặc thay bằng nền sạch trước khi thêm lớp riêng. Artwork AI vẫn cần kiểm tra; không có xóa tự động.</p>
+<label for="review-clean">Thay bằng nền sạch PNG (tùy chọn)</label><input id="review-clean" type="file" accept="image/png"><small id="review-clean-note">Nền sạch phải cùng kích thước mảnh.</small>
+<h3>Chữ · Tối đa 4 dòng</h3><div id="review-text-rows"></div><button id="review-add-text" type="button">Thêm dòng chữ</button>
+<h3>Logo PNG · Tối đa 4 lớp</h3><div id="review-logo-rows"></div><button id="review-add-logo" type="button">Thêm logo</button><small>PNG tối đa 16 MB mỗi logo. Logo đã lưu được giữ lại cho đến khi bạn bấm bỏ.</small>
+<h3>Che chữ / logo cũ bằng màu phẳng</h3><div id="review-erase-rows"></div><button id="review-add-erase" type="button">Thêm vùng che</button>
+<small>Mọi tọa độ tính bằng pixel, từ góc trên bên trái mảnh; cỡ chữ cũng tính bằng pixel. Lưu để xem vị trí thực.</small>
+<h3>Tách logo / tạo SVG trên máy</h3><p class="muted">Chọn vùng trên ảnh nguồn local / OpenAI đã có, bằng tọa độ pixel. Vùng này chưa gồm các lớp hoặc nền sạch vừa thêm.</p><div id="review-region"></div>
+<div class="actions"><button id="review-segment" type="button">Tách vùng SAM 2</button><button id="review-vectorize" type="button">Tạo SVG VTracer</button><button id="review-repair" type="button">Phục hồi vùng bằng OpenAI · Có phí</button></div><div id="review-vector-downloads" class="downloads"></div><small>SVG dùng logo đã lưu cuối cùng; chưa có logo thì dùng vùng chọn. Tối đa 4 triệu pixel. SAM 2 tiny chạy trên CPU, có thể cần chờ. Không có phí API; lưu bản duyệt để giữ logo vừa tách.</small>
+<small>Phục hồi OpenAI áp dụng trên thân, tay áo hoặc mũ có trong mẫu đang chọn. Chữ/logo đã lưu thành lớp được bảo vệ; chữ còn dính trong ảnh nền cần được khoanh tránh hoặc tách riêng trước. Mỗi lần bấm gửi một yêu cầu có phí, không tự thử lại.</small>
+<label class="check"><input id="review-approved" type="checkbox"> Tôi đã kiểm tra chữ, logo, giấy phép font, màu và vị trí trước khi in.</label>
+<div class="actions"><button id="review-save" class="primary" type="submit">Lưu và xem trước</button><button id="review-psd" type="button">Xuất PSD có lớp</button><button id="review-reset" type="button">Bỏ thay đổi chưa lưu</button></div>
+<p id="review-approval-note" class="muted"></p><div id="review-downloads" class="downloads"></div>
+<small>PSD nháp vẫn xuất được. Chỉ bản đã duyệt mới dùng tên PNG để in. Chữ PSD cần cài đúng font trong Photoshop.</small>
+</fieldset></form>
+<details id="review-font-library"><summary style="margin-top:18px">Thư viện font &amp; so sánh DaFont</summary>
+<p><a href="https://www.dafont.com/" target="_blank" rel="noopener noreferrer">Mở DaFont để tự tìm và so sánh</a></p><small>Không tự nhận diện font. Giấy phép do từng tác giả quy định; hãy đọc trước khi dùng thương mại.</small>
+<form id="review-font-form"><fieldset id="review-font-controls">
+<label for="review-font-file">Thêm font TTF / OTF · Tối đa 5 MB</label><input id="review-font-file" type="file" accept=".ttf,.otf" required>
+<label for="review-font-url">Trang font trên DaFont (tùy chọn)</label><input id="review-font-url" type="url" placeholder="https://www.dafont.com/…">
+<label class="check"><input id="review-font-license" type="checkbox"> Tôi đã kiểm tra quyền sử dụng font này.</label><small>Ghi lại thông tin font để đối chiếu khi duyệt.</small>
+<button type="submit">Thêm vào thư viện font</button>
+</fieldset></form>
+<form id="review-samples-form"><label for="review-sample-text">Chữ mẫu để so sánh</label><input id="review-sample-text" type="text" maxlength="120" value="Thiết kế của bạn"><div id="review-sample-selects" class="review-fields"></div><button type="submit" style="margin-top:12px">Xem mẫu font local</button></form>
+<div id="review-font-samples" class="preview-grid" style="margin-top:12px"></div>
+</details></section>
+<p class="note">Thiết kế local mặc định. Các nút OpenAI ghi rõ có phí mới gửi ảnh đến dịch vụ; xem kế hoạch, duyệt lớp và đối chiếu mảnh chạy trên Mac.</p>
+</div></div>
+</main><footer>POD Studio · Lưu trữ trên máy · Máy chủ localhost · Hàng đợi tuần tự</footer>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const active = job => ['queued','running'].includes(job.status);
+const statuses = {queued:'Đang chờ',running:'Đang xử lý',succeeded:'Xử lý xong · Chờ duyệt',failed:'Thất bại',interrupted:'Bị gián đoạn'};
+let settings = null, templates = [], jobs = [], selected = '', timer = null, polling = false, submitting = false, sourceURL = '', displayedJob = null, resultBusy = false, detecting = false, detectionTicket = 0;
+function jobLabel(job) { return job.status === 'succeeded' && job.quality_status === 'approved' ? (templates.find(item => item.name === job.template)?.production_ready === false ? 'Đã duyệt nội dung · Mẫu nháp' : 'Đã duyệt để in') : statuses[job.status] || job.status; }
+function node(tag, text, className) { const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (className) el.className = className; return el; }
+function notice(message, error = false) { $('notice').textContent = message; $('notice').dataset.error = String(error); $('notice').hidden = !message; }
+async function api(path, body) {
+  const response = await fetch(path, body === undefined ? {cache:'no-store'} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  let data; try { data = await response.json(); } catch { throw new Error('Máy chủ trả về dữ liệu không hợp lệ.'); }
+  if (!response.ok) throw new Error(data.error || 'Không thể hoàn thành yêu cầu.'); return data;
+}
+function safeURL(value) { if (typeof value !== 'string' || !value.trim()) return null; try { const url = new URL(value, location.origin); return url.origin === location.origin && ['http:','https:'].includes(url.protocol) && !url.username && !url.password ? url.href : null; } catch { return null; } }
+const generationPanels = ['Front','Back','Sleeve','Hood','Left','Right'];
+function selectedPanels() { return generationPanels.filter(panel => { const input = $(panel.toLowerCase()); return input.checked && !input.disabled; }); }
+function updateForm() {
+  const paid = $('openai').checked, template = templates.find(t => t.name === $('template').value);
+  for (const panel of generationPanels) { const input = $(panel.toLowerCase()); input.disabled = !(template?.panels || []).some(item => item.name === panel); input.closest('label').hidden = input.disabled; if (input.disabled) input.checked = false; }
+  const panels = selectedPanels();
+  $('upscale-label').textContent = paid ? 'Nâng nét artwork sau phục hồi (local)' : 'Nâng chất lượng bằng mô hình local (AI upscale)';
+  $('upscale-help').textContent = paid ? 'Dựng lại artwork từ mockup gốc → nâng nét local (tùy chọn) → đặt vào khuôn → chờ duyệt. Giữ artwork gốc trước nâng nét; bản local chỉ để đối chiếu.' : 'Xử lý trên máy, không gọi OpenAI.';
+  $('panels').disabled = !paid; $('paid-warning').hidden = !paid;
+  const saved = settings && $('model').value === settings.model && $('image-size').value === settings.image_size && $('quality').value === settings.quality;
+  $('estimate').textContent = !paid ? 'Chế độ local · Không phát sinh phí OpenAI.' : panels.length + ' panel · OpenAI tính phí theo token ảnh và văn bản; không có báo giá cố định mỗi ảnh.' + (saved ? '' : ' Lưu cài đặt trước khi tạo ảnh.');
+  $('detect-template').disabled = submitting || detecting || !$('image').files.length;
+  $('submit-job').disabled = submitting || detecting || !template?.ready || !$('image').files.length || (paid && (!settings?.key_configured || !saved || !panels.length || panels.length > 3));
+  $('submit-job').textContent = detecting ? 'Đang nhận diện mẫu…' : submitting ? 'Đang gửi…' : paid ? 'Tạo bản nháp + OpenAI có phí' : 'Tạo bản nháp local';
+  $('template-note').hidden = !template?.note && template?.production_ready !== false;
+  $('template-note').textContent = (template?.reference_resolution ? 'Ảnh mẫu: ' + template.reference_resolution.join(' × ') + ' px. ' : '') + (template?.note || '') + (template?.production_ready === false ? ' Dùng để phục hồi và duyệt bản nháp; chưa xuất bộ sản xuất.' : '');
+  const referenceURL = safeURL(template?.reference_url);
+  $('template-reference').hidden = !referenceURL;
+  if (referenceURL) { $('template-reference-image').src = referenceURL; $('template-reference-label').textContent = template.label || template.name; } else $('template-reference-image').removeAttribute('src');
+  $('template-info').textContent = template ? (template.ready ? (template.production_ready === false ? 'Bố cục nháp · ' : 'Sẵn sàng · ') : 'Thiếu: ' + (template.missing || []).join(', ') + ' · ') + (template.panels || []).map(p => p.name + ': ' + (Array.isArray(p.size) ? p.size.join(' × ') : p.size)).join(' · ') : '';
+}
+function showSettings(value) {
+  settings = value; $('model').value = value.model || 'gpt-image-2.5-flare'; $('image-size').value = value.image_size || '1K'; $('quality').value = value.quality || 'medium';
+  $('key-state').textContent = value.key_configured ? 'Đã cấu hình key · Nguồn: ' + (value.key_source || 'local') : 'Chưa có API key. Nhập và lưu key bên dưới để dùng OpenAI.';
+  $('check-key').disabled = !value.key_configured; $('save-settings').disabled = false; updateForm();
+}
+function showJobs() {
+  const current = selected; $('history').replaceChildren();
+  if (!jobs.length) $('history').append(new Option('Chưa có công việc',''));
+  for (const job of jobs) $('history').append(new Option((job.filename || job.id) + ' · ' + jobLabel(job),job.id));
+  selected = jobs.some(j => j.id === current) ? current : (jobs.find(active) || jobs[0])?.id || ''; $('history').value = selected;
+}
+function picture(title, url) {
+  const href = safeURL(url); if (!href) return;
+  const figure = node('figure'), img = node('img'); img.alt = title; img.src = href; img.loading = 'lazy';
+  img.addEventListener('error', () => { img.hidden = true; figure.append(node('small','Không tải được bản xem trước.')); },{once:true});
+  figure.append(img,node('figcaption',title)); $('previews').append(figure);
+}
+function showJob(job) {
+  displayedJob = job;
+  window.PodReview?.showJob(job);
+  const provider = job.provider === 'openai' || job.openai ? 'OpenAI' : job.provider === 'gemini' || job.gemini ? 'Gemini' : '';
+  $('empty').hidden = true; $('job-detail').hidden = false; $('job-name').textContent = job.filename || job.id;
+  $('job-status').textContent = jobLabel(job); $('job-status').dataset.state = job.status;
+  $('job-meta').textContent = (templates.find(item => item.name === job.template)?.label || job.template || '') + ' · ' + (job.workflow === 'source-original' ? 'Bộ artwork gốc' + (job.repair_attempted ? ' + yêu cầu phục hồi OpenAI có phí' : ' · Không có phí API') : provider ? 'Local + ' + provider + ' · ' + (job.panels || []).join(', ') : 'Local');
+  $('source-provenance').hidden = job.workflow !== 'source-original';
+  $('source-provenance').textContent = job.workflow === 'source-original' ? 'Đã khớp chính xác mockup với bộ file gốc: ' + (job.source_original?.sample || '') + '. Giữ kích thước mẫu xưởng. Đây là khôi phục file gốc, chưa phải kết quả suy ngược và vẫn cần duyệt.' : '';
+  const coverage = Object.entries(job.local_quality?.panels || {}).filter(([name,item]) => typeof item.observed_fraction === 'number');
+  $('coverage-summary').hidden = !coverage.length;
+  $('coverage-summary').textContent = coverage.map(([name,item]) => name + ': ' + Math.round(item.observed_fraction * 100) + '% vùng nguồn nhìn thấy, ' + Math.round(item.inferred_fraction * 100) + '% suy luận' + (item.unresolved_fraction ? ', còn vùng xám chưa phục hồi' : '')).join(' · ') + '. Đây là số đo từ bản đồ trải, không phải chứng nhận chất lượng. Chữ/logo cần đối chiếu riêng.';
+  $('job-error').textContent = job.error || ''; $('job-error').hidden = !job.error; $('review').hidden = active(job) && !(job.review_required || provider);
+  $('review').textContent = (job.status === 'succeeded' && job.quality_status === 'approved' ? 'Đã duyệt thủ công. ' : 'Bản nháp ' + (provider || 'local') + ' cần duyệt thủ công. ') + (['artwork-first-v1','shared-artwork-v2'].includes(job.workflow) ? 'Dựng artwork không bảo đảm phục hồi chính xác; thêm chữ / logo bằng lớp riêng. ' : '') + 'Kiểm tra chữ, logo, màu sắc, đường may và bố cục; tự đối chiếu font qua DaFont trước khi in.';
+  $('ai-download-title').textContent = 'Bản nháp ' + (provider || 'AI') + ' · Cần duyệt';
+  const actionSignature = JSON.stringify([job.id,job.source_preview_url,job.reviews,job.quality_status]);
+  if ($('job-actions').dataset.signature !== actionSignature) { $('job-actions').dataset.signature = actionSignature; $('job-action-downloads').replaceChildren(); $('job-action-message').textContent = ''; }
+  updateJobActions();
+  $('logs').textContent = (job.logs || []).join('\n') || 'Chưa có nhật ký.';
+  const signature = JSON.stringify([job.id,job.source_preview_url,job.previews,job.artifacts]); if ($('previews').dataset.signature === signature) return;
+  $('previews').dataset.signature = signature; $('previews').replaceChildren();
+  picture('Mockup gốc · Ảnh thiết kế ban đầu',job.source_preview_url);
+  for (const preview of job.previews || []) { picture(preview.panel + (job.workflow === 'source-original' ? ' · Artwork gốc · Chờ duyệt' : ' · Bản nháp local'),preview.local_url); if (preview.openai_url) picture(preview.panel + ' · Bản nháp OpenAI · Cần duyệt',preview.openai_url); if (preview.gemini_url) picture(preview.panel + ' · Bản nháp Gemini · Cần duyệt',preview.gemini_url); }
+  $('no-preview').hidden = !!$('previews').childElementCount;
+  for (const id of ['local-downloads','ai-downloads','other-downloads']) $(id).replaceChildren();
+  for (const artifact of job.artifacts || []) {
+    if (artifact.kind === 'approved_zip') continue;
+    const href = safeURL(artifact.url); if (!href) continue;
+    const link = node('a',artifact.name); link.href = href; link.download = '';
+    const ai = /(?:openai|gemini|(?:^|[\W_])ai(?:[\W_]|$))/i.test(artifact.name + ' ' + artifact.url);
+    $(artifact.kind === 'zip' ? ai ? 'ai-downloads' : 'local-downloads' : 'other-downloads').append(link);
+  }
+  if (!$('local-downloads').childElementCount) $('local-downloads').append(node('small','Chưa có ZIP local.'));
+  $('ai-download-section').hidden = !$('ai-downloads').childElementCount;
+}
+function currentGarmentPreview(job) {
+  const preview = job.garment_preview, required = job.required_review_panels || [], revisions = preview?.review_revisions;
+  return !!(preview?.kind === 'calibrated-2d' && safeURL(preview.url) && revisions && required.length && Object.keys(revisions).length === required.length && required.every(panel => job.reviews?.[panel]?.revision && revisions[panel] === job.reviews[panel].revision));
+}
+function currentAssemblyProof(job) {
+  const proof = job.assembly_proof, required = job.required_review_panels || [], revisions = proof?.review_revisions;
+  return !!(proof?.kind === 'six-panel-proof' && safeURL(proof.url) && revisions && required.length && proof.panels?.length === required.length && required.every(panel => proof.panels.includes(panel) && job.reviews?.[panel]?.revision && revisions[panel] === job.reviews[panel].revision));
+}
+function updateJobActions() {
+  const job = displayedJob; if (!job) return;
+  const unsaved = window.PodReview?.hasUnsaved(job.id);
+  $('assembly-proof').disabled = resultBusy || active(job) || unsaved;
+  $('garment-preview').disabled = resultBusy || active(job) || unsaved;
+  $('approved-export').disabled = resultBusy || unsaved || job.status !== 'succeeded' || job.quality_status !== 'approved' || !currentGarmentPreview(job) || !currentAssemblyProof(job) || templates.find(item => item.name === job.template)?.production_ready === false;
+  const assembly = job.assembly_proof, assemblyURL = safeURL(assembly?.url);
+  $('assembly-proof-display').hidden = !assemblyURL;
+  if (assemblyURL) { $('assembly-proof-image').src = assemblyURL; $('assembly-proof-caption').textContent = 'Đối chiếu ' + (assembly.panels || []).join(', ') + '. Mép canvas chưa phải đường may. ' + (currentAssemblyProof(job) ? 'Đúng phiên bản đang duyệt.' : 'Bản nháp hoặc đã có thay đổi; tạo lại bảng sau khi duyệt đủ.'); }
+  const preview = job.garment_preview, href = safeURL(preview?.url), revisions = preview?.review_revisions || {}, saved = job.reviews || {};
+  $('garment-proof').hidden = !href;
+  if (href) {
+    if ($('garment-proof-image').src !== href) $('garment-proof-image').src = href;
+    const matches = Object.keys(revisions).length === Object.keys(saved).length && Object.keys(saved).every(panel => revisions[panel] === saved[panel].revision);
+    $('garment-proof-caption').textContent = (unsaved || !matches ? 'Có thay đổi mới; cần lưu và tạo lại bản xem trên áo. ' : '') + (preview.warnings || []).join(' ');
+  } else $('garment-proof-image').removeAttribute('src');
+  const summary = job.review_summary || {}, required = job.required_review_panels || summary.required_panels || (templates.find(item => item.name === job.template)?.panels || []).map(item => item.name);
+  $('job-review-summary').textContent = (required.length ? 'Đã duyệt ' + (summary.approved_panels || []).length + ' / ' + required.length + ' panel của mẫu. Cần duyệt: ' + required.join(', ') + '.' : 'Cần duyệt tất cả panel của mẫu.') + (job.quality_status === 'approved' && !currentGarmentPreview(job) ? ' Hãy tạo lại bản xem trên áo sau lần duyệt mới nhất để mở xuất ZIP.' : '') + (!currentAssemblyProof(job) ? ' Cần bảng đối chiếu đủ các mảnh cùng phiên bản để xuất ZIP.' : '');
+}
+async function jobResult(action) {
+  if (resultBusy || $(action).disabled || !selected) return;
+  const id = selected; resultBusy = true; updateJobActions(); $('job-action-message').textContent = 'Đang tạo trên máy…';
+  try {
+    const result = await api('/api/jobs/' + encodeURIComponent(id) + '/' + action, {});
+    const job = await api('/api/jobs/' + encodeURIComponent(id));
+    jobs = jobs.map(item => item.id === id ? job : item); showJobs();
+    if (selected !== id) return;
+    showJob(job);
+    const href = safeURL(result.url);
+    if (!href || (action === 'garment-preview' && result.kind !== 'calibrated-2d')) throw new Error('Máy chủ chưa trả về tệp kết quả hợp lệ.');
+    if (action === 'approved-export' && (job.status !== 'succeeded' || job.quality_status !== 'approved' || !currentGarmentPreview(job) || !currentAssemblyProof(job))) throw new Error('Trạng thái duyệt đã thay đổi. Duyệt đủ các mảnh, tạo lại bản xem trên áo, rồi xuất bộ đã duyệt.');
+    const link = node('a', action === 'assembly-proof' ? 'Tải bảng đối chiếu các mảnh' : action === 'garment-preview' ? 'Tải hình dung áo 2D đã hiệu chỉnh' : result.name || 'Tải ZIP đã duyệt để in'); link.href = href; link.download = '';
+    $('job-action-downloads').querySelector('[data-action="' + action + '"]')?.remove(); link.dataset.action = action; $('job-action-downloads').append(link);
+    $('job-action-message').textContent = action === 'assembly-proof' ? 'Đã tạo bảng đối chiếu đủ các mảnh, đúng kích thước mẫu. Mép canvas chưa xác nhận dung sai đường may.' : action === 'garment-preview' ? 'Hình dung áo 2D đã hiệu chỉnh · Panel: ' + (result.panels || []).join(', ') + ((result.missing_panels || []).length ? ' · Thiếu: ' + result.missing_panels.join(', ') : '') + '. Không phải 3D thật.' : 'Đã tạo ZIP từ các panel được duyệt thủ công.';
+  } catch (error) { if (selected === id) { $('job-action-message').textContent = error.message; notice(error.message,true); } }
+  finally { resultBusy = false; updateJobActions(); }
+}
+async function loadSelected() { if (!selected) return; const id = selected, job = await api('/api/jobs/' + encodeURIComponent(id)); if (selected === id) showJob(job); }
+function schedule() {
+  clearTimeout(timer); timer = null;
+  if (!document.hidden && jobs.some(active)) timer = setTimeout(poll,2500);
+}
+async function poll() {
+  if (polling) return; polling = true;
+  try { jobs = await api('/api/jobs'); showJobs(); await loadSelected(); }
+  catch (error) { notice('Không cập nhật được trạng thái: ' + error.message,true); }
+  finally { polling = false; schedule(); }
+}
+async function loadStatus() {
+  const status = await api('/api/status'), previous = $('template').value;
+  $('online-logout').hidden = !status.online_access;
+  $('access-mode').textContent = status.online_access ? '● Truy cập online' : '● Không gian localhost';
+  templates = status.templates || []; $('template').replaceChildren(new Option('Chọn mẫu sản phẩm…',''));
+  for (const template of templates) { const option = new Option((template.label || template.name) + (template.ready ? '' : ' · Chưa sẵn sàng'),template.name); option.disabled = !template.ready; $('template').append(option); }
+  if (!templates.length) $('template').append(new Option('Chưa có mẫu',''));
+  const recentTemplate = (status.jobs || []).find(job => job.id === selected)?.template || status.jobs?.[0]?.template;
+  $('template').value = templates.find(t => t.name === previous && t.ready)?.name || templates.find(t => t.name === recentTemplate && t.ready)?.name || templates.find(t => t.ready)?.name || '';
+  $('template').disabled = !templates.some(t => t.ready); showSettings(status.settings);
+  const rt = status.runtime || {}; $('runtime').textContent = 'Python: ' + (rt.python || '—') + ' · MPS: ' + (rt.mps ? 'có' : 'không') + ' · API: OpenAI · Engine: ' + (rt.engine_root || '—');
+  jobs = status.jobs || []; showJobs(); await loadSelected(); schedule();
+}
+function validateFile(file) {
+  if (!file || !['image/jpeg','image/png','image/webp'].includes(file.type)) throw new Error('Chọn ảnh JPEG, PNG hoặc WebP.');
+  if (!file.size || file.size > 32 * 1024 * 1024) throw new Error('Ảnh phải lớn hơn 0 và không vượt quá 32 MB.');
+}
+function readBase64(file) { return new Promise((resolve,reject) => { const reader = new FileReader(); reader.onerror = () => reject(new Error('Không đọc được ảnh.')); reader.onabort = () => reject(new Error('Đã hủy đọc ảnh.')); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.readAsDataURL(file); }); }
+let designData = null, designGeometry = null, planURL = '';
+$('design-data-file').addEventListener('change', async () => {
+  designData = null; designGeometry = null;
+  try {
+    const file = $('design-data-file').files[0]; if (!file) return;
+    if (file.size > 65536) throw new Error('Bản mô tả tối đa 64 KB.');
+    const value = JSON.parse(await file.text()), source = value.spec || value;
+    if (!source || Array.isArray(source) || typeof source !== 'object') throw new Error('Bản mô tả không hợp lệ.');
+    designData = Object.fromEntries(['palette','motifs','bands','text_layers','unknowns'].filter(key => key in source).map(key => [key,source[key]]));
+    designGeometry = source.panels || null;
+    if (typeof source.notes === 'string') { if (source.notes.length > 2000) throw new Error('Ghi chú thiết kế tối đa 2.000 ký tự.'); $('design-notes').value = source.notes; }
+    $('design-plan-summary').textContent = 'Đã nạp dữ liệu. Bấm xem kế hoạch để kiểm tra với mẫu đang chọn.';
+  } catch (error) { designData = null; designGeometry = null; $('design-data-file').value = ''; notice(error.message,true); }
+});
+$('design-plan-button').addEventListener('click', async () => {
+  $('design-plan-button').disabled = true;
+  try {
+    const result = await api('/api/design-plan',{template:$('template').value,design_notes:$('design-notes').value,design_data:designData,design_geometry:designGeometry});
+    $('design-plan-summary').textContent = 'Kế hoạch chung: ' + Object.keys(result.spec.panels).join(', ') + '. ' + result.spec.motifs.length + ' họa tiết đã khai báo; các vùng thiếu vẫn chờ duyệt. Không phân tích hay tạo ảnh bằng API trong bước này.';
+    $('design-prompt-text').textContent = Object.entries(result.prompts).map(([name,text]) => name + '\n' + text).join('\n\n');
+    $('design-prompts').hidden = false;
+    if (planURL) URL.revokeObjectURL(planURL);
+    planURL = URL.createObjectURL(new Blob([JSON.stringify(result,null,2)],{type:'application/json'}));
+    const link = node('a','Tải bản mô tả thiết kế'); link.href = planURL; link.download = 'design-plan.json'; $('design-plan-download').replaceChildren(link);
+  } catch (error) { notice(error.message,true); }
+  finally { $('design-plan-button').disabled = false; }
+});
+async function detectProduct() {
+  const file = $('image').files[0], ticket = ++detectionTicket;
+  detecting = true; $('detection-status').textContent = 'Đang đối chiếu mẫu trên Mac…'; updateForm();
+  try {
+    validateFile(file);
+    const encoded = await readBase64(file);
+    if (ticket !== detectionTicket) return;
+    const result = await api('/api/detect-template',{image_base64:encoded});
+    if (ticket !== detectionTicket) return;
+    const match = templates.find(item => item.name === result.selected_template && item.ready);
+    if (match) {
+      $('template').value = match.name;
+      const choices = (match.panels || []).map(item => item.name).filter(name => generationPanels.includes(name));
+      if (choices.length === 1) $(choices[0].toLowerCase()).checked = true;
+      $('detection-status').textContent = 'Đã chọn: ' + (match.label || match.name) + '. ' + result.reason;
+    } else {
+      $('template').value = '';
+      const suggested = templates.find(item => item.name === result.suggested_template);
+      $('detection-status').textContent = result.reason + (suggested ? ' Gợi ý để đối chiếu: ' + (suggested.label || suggested.name) + '.' : '');
+    }
+  } catch (error) { if (ticket === detectionTicket) { $('template').value = ''; $('detection-status').textContent = 'Chưa nhận diện được: ' + error.message + ' Bạn có thể chọn mẫu thủ công.'; } }
+  finally { if (ticket === detectionTicket) { detecting = false; updateForm(); } }
+}
+$('detect-template').addEventListener('click',detectProduct);
+$('template').addEventListener('change', () => { detectionTicket++; detecting = false; if ($('image').files.length) $('detection-status').textContent = 'Đang dùng mẫu bạn chọn thủ công.'; updateForm(); });
+$('image').addEventListener('change', () => {
+  detectionTicket++; detecting = false;
+  if (sourceURL) URL.revokeObjectURL(sourceURL); sourceURL = ''; $('source-preview').hidden = true; $('source-preview').removeAttribute('src');
+  try { validateFile($('image').files[0]); sourceURL = URL.createObjectURL($('image').files[0]); $('source-preview').src = sourceURL; $('source-preview').hidden = false; notice(''); detectProduct(); }
+  catch (error) { $('image').value = ''; notice(error.message,true); } updateForm();
+});
+for (const id of ['template','openai','front','back','sleeve','hood','left','right','model','image-size','quality']) $(id).addEventListener('change',updateForm);
+for (const action of ['assembly-proof','garment-preview','approved-export']) $(action).addEventListener('click', () => jobResult(action));
+window.addEventListener('pod-review-changed', event => { if (event.detail?.jobId === selected) { $('job-action-downloads').querySelector('[data-action="approved-export"]')?.remove(); $('job-action-message').textContent = window.PodReview?.hasUnsaved(selected) ? 'Có thay đổi chưa lưu. Lưu bản duyệt trước khi xem trên áo hoặc tạo lại ZIP.' : ''; updateJobActions(); } });
+window.addEventListener('pod-review-saved', async event => {
+  const id = event.detail?.jobId; if (!id) return;
+  try { const job = await api('/api/jobs/' + encodeURIComponent(id)); jobs = jobs.map(item => item.id === id ? job : item); showJobs(); if (selected === id) showJob(job); }
+  catch (error) { notice('Đã lưu bản duyệt nhưng chưa cập nhật trạng thái: ' + error.message,true); }
+});
+$('settings-form').addEventListener('submit', async event => {
+  event.preventDefault(); $('save-settings').disabled = true;
+  const body = {model:$('model').value,image_size:$('image-size').value,quality:$('quality').value}; if ($('api-key').value.trim()) body.api_key = $('api-key').value.trim();
+  try { showSettings(await api('/api/settings',body)); $('api-key').value = ''; notice('Đã lưu cài đặt. Không tạo ảnh và không gọi OpenAI.'); await loadStatus(); }
+  catch (error) { notice(error.message,true); } finally { $('api-key').value = ''; $('save-settings').disabled = false; }
+});
+$('check-key').addEventListener('click', async () => {
+  $('check-key').disabled = true; try { const result = await api('/api/check',{}); notice((result.ok ? 'Kết nối thành công' : 'Kiểm tra chưa thành công') + ' · ' + result.model + ' · ' + result.message,!result.ok); }
+  catch (error) { notice(error.message,true); } finally { $('check-key').disabled = !settings?.key_configured; }
+});
+$('job-form').addEventListener('submit', async event => {
+  event.preventDefault(); if (submitting || $('submit-job').disabled) return;
+  const file = $('image').files[0], paid = $('openai').checked;
+  const body = {template:$('template').value,filename:file?.name,use_model:$('upscale').checked,use_reference:$('use-reference').checked,design_data:designData,design_geometry:designGeometry,openai:paid,panels:paid ? selectedPanels() : ['Front']};
+  if ($('design-notes').value.trim()) body.design_notes = $('design-notes').value.trim();
+  submitting = true; updateForm();
+  try { validateFile(file); body.image_base64 = await readBase64(file); const job = await api('/api/jobs',body); selected = job.id; jobs = [job,...jobs.filter(j => j.id !== job.id)]; showJobs(); showJob(job); notice('Đã thêm vào hàng đợi. Mỗi lần chỉ xử lý một công việc.'); schedule(); }
+  catch (error) { notice(error.message,true); } finally { delete body.image_base64; submitting = false; updateForm(); }
+});
+$('history').addEventListener('change',async () => { selected = $('history').value; try { await loadSelected(); } catch (error) { notice(error.message,true); } });
+$('refresh').addEventListener('click',async () => { $('refresh').disabled = true; try { await loadStatus(); notice('Đã cập nhật trạng thái.'); } catch (error) { notice(error.message,true); } finally { $('refresh').disabled = false; } });
+document.addEventListener('visibilitychange', () => { clearTimeout(timer); if (!document.hidden && jobs.some(active)) poll(); });
+let marketItems = [], marketDate = '';
+const marketStyleLabels = {'pullover':'Chui đầu','full-zip':'Khóa kéo toàn thân','raglan':'Tay raglan','oversized':'Oversized','boxy':'Dáng hộp','drop-shoulder':'Vai rơi','cropped':'Crop','heavyweight':'Vải dày','lightweight':'Vải nhẹ','slim-fit':'Dáng ôm','athletic':'Thể thao','loopback-terry':'Vải da cá','hooded-blanket':'Chăn mặc có mũ','sherpa-lined':'Lót sherpa','all-over-graphic':'Họa tiết toàn thân','graphic':'Có hình in','unisex':'Unisex','generous-fit':'Dáng rộng','brushed-fleece':'Nỉ chải lông'};
+function publicSourceURL(value) {
+  try { const url = new URL(value); return url.protocol === 'https:' && !url.username && !url.password ? url.href : null; } catch { return null; }
+}
+function renderMarketLibrary() {
+  const query = $('market-search').value.trim().toLocaleLowerCase('vi'), brand = $('market-brand').value, style = $('market-style').value;
+  const filtered = marketItems.filter(item => (!brand || item.brand === brand) && (!style || item.style_tags.includes(style)) && (!query || [item.label,item.brand,item.product_title,item.notes,...item.style_tags].join(' ').toLocaleLowerCase('vi').includes(query)));
+  $('market-items').replaceChildren();
+  for (const item of filtered) {
+    const card = node('article',undefined,'market-item'), pictureURL = item.image_url && publicSourceURL(item.image_url);
+    if (pictureURL) { const img = node('img'); img.src = pictureURL; img.alt = item.brand + ' · ' + item.product_title; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer'; img.addEventListener('error',() => { img.hidden = true; },{once:true}); card.append(img); }
+    card.append(node('h3',item.label),node('small',item.brand + ' · ' + item.product_title),node('small',item.style_tags.map(tag => marketStyleLabels[tag] || tag).join(' · ')),node('p',item.notes));
+    const href = publicSourceURL(item.product_url);
+    if (href) { const link = node('a','Xem mẫu tại hãng'); link.href = href; link.target = '_blank'; link.rel = 'noopener noreferrer'; card.append(link); }
+    const evidenceURL = publicSourceURL(item.shopify_evidence_url);
+    if (evidenceURL) { const detail = node('details'), summary = node('summary','Nguồn tham chiếu'); detail.append(summary,node('small',item.evidence_note)); const link = node('a','Mở nguồn xác minh'); link.href = evidenceURL; link.target = '_blank'; link.rel = 'noopener noreferrer'; detail.append(link); card.append(detail); }
+    $('market-items').append(card);
+  }
+  $('market-status').textContent = filtered.length + ' / ' + marketItems.length + ' mẫu · ' + new Set(marketItems.map(item => item.brand)).size + ' hãng · Kiểm tra nguồn: ' + marketDate + '. Chỉ tham chiếu kiểu dáng.';
+}
+async function loadMarketLibrary() {
+  try {
+    const data = await api('/api/hoodie-library');
+    marketItems = data.items || []; marketDate = data.researched_on || '';
+    $('market-brand').replaceChildren(new Option('Tất cả hãng',''));
+    for (const name of [...new Set(marketItems.map(item => item.brand))].sort()) $('market-brand').append(new Option(name,name));
+    $('market-style').replaceChildren(new Option('Tất cả kiểu',''));
+    for (const tag of [...new Set(marketItems.flatMap(item => item.style_tags))].sort()) $('market-style').append(new Option(marketStyleLabels[tag] || tag,tag));
+    renderMarketLibrary();
+  } catch (error) { $('market-status').textContent = 'Chưa tải được thư viện: ' + error.message; }
+}
+for (const id of ['market-search','market-brand','market-style']) $(id).addEventListener(id === 'market-search' ? 'input' : 'change',renderMarketLibrary);
+
+ document.addEventListener('DOMContentLoaded', () => {
+    loadMarketLibrary();
+    window.PodReview?.init({api,safeURL,node,readBase64});
+   loadStatus().catch(error => notice('Không kết nối được máy chủ local: ' + error.message + ' Hãy bật máy chủ rồi làm mới.',true));
+ });
+</script>
+<script src="/review.js" defer></script>
+</body>
+</html>

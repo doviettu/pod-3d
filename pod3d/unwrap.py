@@ -24,6 +24,20 @@ def remap_grid(grid, mockup, work_size, step=None, mockup_size=None, interp=cv2.
     return cv2.remap(mockup, mx, my, interp, borderMode=cv2.BORDER_REPLICATE)
 
 
+# Measured with scripts/golden.py (docs/local-quality.md): rejecting backdrop helps sleeves, which are
+# seen right at the outline, but costs body panels whose white artwork touches the outline.
+EXCLUDE_BACKGROUND = ("strip", "tube")
+
+
+def exterior_background(mockup, level=240):
+    """Near-white pixels connected to the image border: the studio backdrop, not the garment.
+    White artwork enclosed by the garment is kept."""
+    white = (mockup.min(2) > level).astype(np.uint8)
+    _, labels = cv2.connectedComponents(white, connectivity=8)
+    edge = np.unique(np.concatenate((labels[0], labels[-1], labels[:, 0], labels[:, -1])))
+    return np.isin(labels, edge[edge != 0])
+
+
 def unwrap(template, panel, mockup, color=True, m=None):
     """m: a map made elsewhere (marks.make_map); default is the template's calibrated map."""
     m = m if m is not None else load_map(template, panel)
@@ -31,6 +45,12 @@ def unwrap(template, panel, mockup, color=True, m=None):
     out = remap_grid(m["grid"], mockup, (ww, wh), int(m["step"]), m["mockup_size"])
     gh, gw = m["cov"].shape
     cov = _interp2(m["cov"], np.arange(ww) / int(m["step"]), np.arange(wh) / int(m["step"]), gw, gh)
+    if panel.method in EXCLUDE_BACKGROUND:
+        # A map that strays past the garment outline picks up backdrop; treat that as unseen.
+        backdrop = exterior_background(mockup).astype(np.uint8) * 255
+        outside = remap_grid(m["grid"], backdrop, (ww, wh), int(m["step"]), m["mockup_size"],
+                             interp=cv2.INTER_NEAREST) > 127
+        cov = np.where(outside, 0.0, cov)
     return (apply_color(template, out) if color else out), cov.astype(np.float32)
 
 

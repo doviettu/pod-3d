@@ -1,0 +1,34 @@
+[
+  {
+    "id": "hoodie_halloween_team",
+    "label": "Hoodie Halloween · Tay đen · Sau trái / trước phải",
+    "path": "hoodie_halloween_team/reference.jpg",
+    "background": "white",
+    "allow_geometry": false,
+    "ready": true
+  },
+  {
+    "id": "tshirt_stepback_back",
+    "label": "Áo thun Stepback · Mặt lưng · Bản nháp",
+    "path": "tshirt_stepback_back/reference.jpg",
+    "background": "model",
+    "allow_geometry": false,
+    "ready": true
+  },
+  {
+    "id": "hoodie_pumpkin_texture",
+    "label": "Hoodie bí ngô · Phủ họa tiết · Trước trái / sau phải",
+    "path": "hoodie_pumpkin_texture/reference.jpg",
+    "background": "complex",
+    "allow_geometry": false,
+    "ready": true
+  },
+  {
+    "id": "sweater",
+    "label": "Sweater · 6 mảnh chuẩn",
+    "path": "reference-assets/sweater.jpg",
+    "background": "white",
+    "allow_geometry": true,
+    "ready": true
+  }
+]

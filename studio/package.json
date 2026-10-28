@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "description": "PSD export with editable text for POD Studio",
+  "dependencies": {"ag-psd": "33.0.0"}
+}

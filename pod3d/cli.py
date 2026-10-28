@@ -3,7 +3,7 @@ import argparse
 import json
 from pathlib import Path
 
-from . import calibrate, markui, pipeline, template
+from . import calibrate, geometry, markui, pipeline, template
 
 
 def _sets_from_dirs(dirs, tpl):
@@ -43,6 +43,9 @@ def main(argv=None):
     c = sub.add_parser("calibrate", help="learn a template from sample folders (mockup + print files)")
     c.add_argument("template")
     c.add_argument("folders", nargs="+")
+    g = sub.add_parser("layout", help="build a template's maps from the quads/tubes in its template.json (no sample files)")
+    g.add_argument("template")
+    g.add_argument("mockup", help="reference mockup of that shot")
     sub.add_parser("templates", help="list templates")
     a = ap.parse_args(argv)
     if a.cmd == "templates":
@@ -51,6 +54,8 @@ def main(argv=None):
             print(n, json.dumps({p.name: list(p.size) for p in t.panels}))
     elif a.cmd == "mark":
         markui.serve(template.load(a.template), a.mockup)
+    elif a.cmd == "layout":
+        geometry.run(template.load(a.template), a.mockup)
     elif a.cmd == "calibrate":
         t = template.load(a.template)
         calibrate.run(t, _sets_from_dirs(a.folders, t))
