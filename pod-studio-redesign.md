@@ -88,6 +88,8 @@ Prompt không viết tay mỗi lần mà **ghép từ khuôn**, để giống h�
 
 **Thư viện kiểu dáng** (trang riêng): mỗi kiểu gồm tên, bộ mảnh riêng và kích thước (mảnh chính tối thiểu 4500 × 5400), ảnh tham chiếu, các map đã hiệu chỉnh theo góc chụp, trạng thái "đã duyệt in thật".
 
+**Tăng chất lượng Local**: các kỹ thuật bổ sung (tìm ảnh gốc lớn hơn, dựng lại lưới mũi len/pixel, khử vân len bằng FFT, vector hoá lai, bộ test vàng…) ở [docs/local-quality.md](docs/local-quality.md).
+
 ## Xem kết quả
 
 - Lưới thẻ: ảnh gốc, từng mảnh, bản ghép lên áo.
@@ -147,6 +149,7 @@ Chạy tự động cho mọi job, ngay sau bước tìm vùng art, trước khi
 - [ ] 2. Dựng vỏ FastAPI + SQLite jobs + worker, chuyển dần route của `studio.py` → Verify: `curl 127.0.0.1:8765/api/status` trả 200, job cũ hiện trong lịch sử.
 - [ ] 3. Trang chính 2 tab 2D / 3D, ô nạp ảnh/link/dán → Verify: dán link ảnh, thấy ảnh xem trước.
 - [ ] 4. Pipeline 2D (tìm vùng, phẳng, bỏ nền, phóng to, canvas 4500 × 5400) → Verify: 5 ảnh mẫu ra PNG đúng cỡ, có alpha, 300 DPI; 1 ảnh trước + sau cạnh nhau ra đủ `front.png` và `back.png`.
+- [ ] 4b. Bộ test vàng + 5 kỹ thuật ưu tiên trong `docs/local-quality.md` → Verify: bảng điểm SSIM/ΔE trước-sau trên 3 bộ mẫu, chỉ bật kỹ thuật tăng điểm.
 - [ ] 5. Trình xem OpenSeadragon + so sánh trước/sau → Verify: zoom tới pixel trên mảnh 6048 × 6559 mượt.
 - [ ] 6. Thư viện kiểu dáng + nhận dáng tự động → Verify: ảnh sweater/hoodie mẫu được nhận đúng kiểu, ảnh lạ hỏi chọn tay.
 - [ ] 7. Nối 3D Local và 3D AI vào luồng mới (khuôn prompt, cache, sheet 1 lệnh, trần ngân sách) → Verify: mockup Home Alone ra đủ 6 mảnh theo cả 2 chế độ; chạy AI lần 2 cùng ảnh không phát sinh lệnh mới.
@@ -154,7 +157,7 @@ Chạy tự động cho mọi job, ngay sau bước tìm vùng art, trước khi
 - [ ] 8b. Kiểm tra bản quyền (pHash, OCR + từ khoá, gộp vào lệnh AI mô tả, nhãn Xanh/Vàng/Đỏ, thư mục và cột Sheet) → Verify: mockup Home Alone bị gắn Đỏ (Disney/Fox); một art chữ tự viết ra Xanh; đổi một job sang Đỏ thì ảnh trùng lần sau tự Đỏ.
 - [ ] 9. Kiểm tra tổng: chạy 3 job 2D + 2 job 3D từ đầu tới Drive → Verify: Sheet có 5 dòng, mọi link mở được.
 
-Thứ tự: 1 → 2 → (3, 5 song song) → 4 → 6 → 7 → 8 → 8b → 9. Mỗi bước là một PR nhỏ.
+Thứ tự: 1 → 2 → (3, 5 song song) → 4 → 4b → 6 → 7 → 8 → 8b → 9. Mỗi bước là một PR nhỏ.
 
 ## Đã chốt (28/10)
 
