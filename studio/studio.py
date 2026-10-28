@@ -4,6 +4,7 @@ import base64
 import binascii
 import copy
 import hashlib
+import html
 import io
 import json
 import re
@@ -657,6 +658,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_bytes(200, (HERE / "static" / STATIC[path][0]).read_bytes(), STATIC[path][1])
             elif path.startswith("/api/v2/") or path.startswith("/v2files/"):
                 self.v2_get(path)
+            elif path == "/google/callback":
+                self.google_callback()
             elif re.fullmatch(r'/templates/[a-z][a-z0-9_-]{0,63}/reference[.]jpg', path):
                 name = path.split('/')[2]
                 target = engine.templates.thumbnail_path(name) if hasattr(engine.templates, 'thumbnail_path') else engine.templates.reference_path(name)
@@ -718,6 +721,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, v2.rights_config())
         elif path == "/api/v2/styles":
             self.send_json(200, v2.styles())
+        elif path == "/api/v2/google":
+            self.send_json(200, v2.google_status())
         elif re.fullmatch(r"/api/v2/templates/[a-z][a-z0-9_-]{0,63}/preview", path):
             self.send_file(v2.template_preview(path.split("/")[4]))
         elif re.fullmatch(r"/api/v2/sources/[a-f0-9]{64}", path):
@@ -730,6 +735,22 @@ class Handler(BaseHTTPRequestHandler):
             self.send_file(v2.file_path(parts[2], unquote(parts[3])))
         else:
             raise FileNotFoundError()
+
+    def google_callback(self):
+        """Google sends the browser back here after sign-in (loopback redirect of a Desktop client)."""
+        query = parse_qs(urlsplit(self.path).query)
+        try:
+            if query.get("error"):
+                raise ValueError("Google báo: " + query["error"][0][:100])
+            self.server.v2.google_callback(query.get("state", [""])[0], query.get("code", [""])[0])
+            message, ok = "Đã kết nối Google Drive. Các job đã duyệt sẽ được đồng bộ.", True
+        except (ValueError, KeyError, OSError, RuntimeError) as exc:
+            message, ok = str(exc)[:300], False
+        page = ('<!doctype html><meta charset="utf-8"><title>Google Drive</title>'
+                + ('<meta http-equiv="refresh" content="2;url=/">' if ok else '')
+                + '<body style="font:16px system-ui;margin:3em"><p>' + html.escape(message)
+                + '</p><p><a href="/">Quay lại POD Studio</a></p>')
+        self.send_bytes(200 if ok else 400, page.encode(), "text/html; charset=utf-8")
 
     def send_file(self, target):
         kind = {".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".json": "application/json",
@@ -779,6 +800,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, self.server.v2.rights_config(data))
             elif self.path == "/api/v2/detect-style":
                 self.send_json(200, self.server.v2.detect_style(data))
+            elif self.path == "/api/v2/google/client":
+                self.send_json(200, self.server.v2.google_client(data))
+            elif self.path == "/api/v2/google/connect":
+                if is_online(self):
+                    raise ValueError("Chỉ kết nối Google được từ trình duyệt trên máy Mac.")
+                self.send_json(200, self.server.v2.google_connect(f"http://{self.headers['Host']}/google/callback"))
+            elif self.path == "/api/v2/google/disconnect":
+                self.send_json(200, self.server.v2.google_disconnect())
+            elif self.path == "/api/v2/google/sync":
+                self.send_json(200, self.server.v2.google_sync(data))
             elif self.path == "/api/v2/templates":
                 self.send_json(201, self.server.v2.create_template(data))
             elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/rights", self.path):

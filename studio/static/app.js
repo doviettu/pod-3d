@@ -54,7 +54,7 @@ function el(tag, attrs = {}, ...children) {
 $$('.tabs button').forEach(button => button.addEventListener('click', () => {
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b === button)));
   $$('.tab').forEach(t => { t.hidden = t.id !== `tab-${button.dataset.tab}`; });
-  if (button.dataset.tab === 'history') { loadHistory(); loadRights(); }
+  if (button.dataset.tab === 'history') { loadHistory(); loadRights(); loadGoogle(); }
 }));
 
 // ---------- adding sources ----------
@@ -662,6 +662,14 @@ function rightsInfo(job) {
     ...(ev.links || []).map(l => el('a', { href: l.url, target: '_blank', rel: 'noopener noreferrer' }, l.label)));
 }
 
+function driveInfo(job) {
+  if (job.drive_url) return el('a', { class: 'button', href: job.drive_url, target: '_blank', rel: 'noopener noreferrer' }, 'Mở trên Drive');
+  if (!job.sync) return null;
+  const text = { queued: 'Đang chờ đồng bộ Drive…', retry: 'Lỗi mạng, sẽ thử đồng bộ lại', error: 'Đồng bộ Drive lỗi' }[job.sync.state] || '';
+  return el('div', { class: job.sync.state === 'error' ? 'warn' : 'muted', title: job.sync.error || '' },
+    text + (job.sync.error && job.sync.state === 'error' ? `: ${job.sync.error}` : ''));
+}
+
 function renderJob(job) {
   const status = el('span', { class: `badge ${job.status === 'failed' ? 'red' : job.status === 'approved' ? 'green' : ''}` }, STATUS_LABEL[job.status] || job.status);
   const rightsBadge = job.rights !== 'unknown' ? el('span', { class: `badge ${job.rights}` }, RIGHTS_LABEL[job.rights]) : null;
@@ -684,7 +692,7 @@ function renderJob(job) {
         el('div', { class: 'body' }, head.cloneNode(true),
           el('div', { class: 'muted' }, `${SIDE_LABEL[side]} · ${out.size[0]} × ${out.size[1]} px · ${out.dpi} DPI`),
           ...(out.warnings || []).map(w => el('div', { class: 'warn' }, w)),
-          rightsInfo(job),
+          rightsInfo(job), driveInfo(job),
           el('div', { class: 'actions' },
             el('button', { onclick: () => openViewer(full, `${job.sku} · ${SIDE_LABEL[side]}`) }, 'Mở rộng'),
             el('a', { class: 'button', href: full + '?download=1' }, 'Tải PNG'),
@@ -704,7 +712,7 @@ function renderJob(job) {
     }
     const zip = (job.outputs.artifacts || []).find(a => a.kind === 'zip');
     cards.push(el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head.cloneNode(true),
-      rightsInfo(job),
+      rightsInfo(job), driveInfo(job),
       zip ? el('a', { class: 'button', href: zip.url }, 'Tải bộ ZIP') : null,
       el('a', { class: 'button', href: '/legacy' }, 'Duyệt chữ/logo, xuất PSD'),
       el('div', { class: 'actions' }, rightsControl(job), approve))));
@@ -727,6 +735,48 @@ $('#rights-save').addEventListener('click', async () => {
     await loadRights();
   } catch (error) { alert(error.message); }
 });
+
+// ---------- Google Drive + Sheet ----------
+async function googleCall(path, body) {
+  try { renderGoogle(await api(path, body)); } catch (error) { alert(error.message); }
+}
+
+function renderGoogle(g) {
+  const queue = g.queue || {};
+  const waiting = (queue.queued || 0) + (queue.retry || 0);
+  $('#google-info').textContent = !g.client ? 'chưa cài' : g.needs_reconnect ? 'cần kết nối lại' :
+    g.connected ? `đã kết nối${waiting ? ` · ${waiting} job đang chờ` : ''}${queue.error ? ` · ${queue.error} lỗi` : ''}` : 'chưa kết nối';
+  const body = [];
+  if (!g.client || !g.connected) {
+    body.push(el('ol', { class: 'muted steps' },
+      el('li', {}, 'Vào ', el('a', { href: 'https://console.cloud.google.com/apis/library/drive.googleapis.com', target: '_blank', rel: 'noopener noreferrer' }, 'Google Cloud'),
+        ', tạo project, bật "Google Drive API" và "Google Sheets API".'),
+      el('li', {}, 'Màn hình đồng ý OAuth: loại External, thêm email của bạn, rồi bấm "Publish app" (chỉ dùng quyền drive.file nên không cần Google duyệt; để chế độ Testing thì 7 ngày phải kết nối lại).'),
+      el('li', {}, 'Credentials → Create credentials → OAuth client ID → loại "Desktop app" → tải file JSON.'),
+      el('li', {}, 'Dán nội dung file JSON vào ô dưới, bấm Lưu, rồi bấm Kết nối Google.')));
+    const box = el('textarea', { rows: 4, placeholder: '{"installed":{"client_id":"…apps.googleusercontent.com", …}}' });
+    body.push(el('label', { class: 'block' }, g.client ? `Client đã lưu: ${g.client_id_hint}. Dán file khác để thay:` : 'File JSON client OAuth', box),
+      el('div', { class: 'actions' },
+        el('button', { onclick: () => googleCall('/api/v2/google/client', { json: box.value }) }, 'Lưu client'),
+        g.client ? el('button', { class: 'primary', onclick: async () => {
+          try { location.href = (await api('/api/v2/google/connect', {})).url; } catch (error) { alert(error.message); }
+        } }, g.needs_reconnect ? 'Kết nối Google lại' : 'Kết nối Google') : null));
+  } else {
+    body.push(el('p', { class: 'muted' }, 'Bấm Duyệt một job là file và dòng Sheet tự lên Drive. Tool chỉ thấy các file do nó tạo.'),
+      el('div', { class: 'actions' },
+        g.root_url ? el('a', { class: 'button', href: g.root_url, target: '_blank', rel: 'noopener noreferrer' }, 'Thư mục POD Studio') : null,
+        g.sheet_url ? el('a', { class: 'button', href: g.sheet_url, target: '_blank', rel: 'noopener noreferrer' }, 'Sheet POD Quản lý') : null,
+        el('button', { onclick: () => googleCall('/api/v2/google/sync', {}) },
+          `Đồng bộ lại${g.unsynced ? ` (${g.unsynced} job chưa lên Drive)` : ''}`),
+        el('button', { onclick: () => confirm('Ngắt kết nối Google? File trên Drive vẫn giữ nguyên.') && googleCall('/api/v2/google/disconnect', {}) }, 'Ngắt kết nối')));
+  }
+  if (g.last_error) body.push(el('div', { class: 'warn' }, g.last_error));
+  $('#google-body').replaceChildren(...body);
+}
+
+async function loadGoogle() {
+  try { renderGoogle(await api('/api/v2/google')); } catch (error) { $('#google-info').textContent = error.message; }
+}
 
 // ---------- history ----------
 async function loadHistory() {

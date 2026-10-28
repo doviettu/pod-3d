@@ -4,16 +4,19 @@
 unwrap, OpenAI restore, review, PSD) and linked by legacy_id. Both share the
 Engine's single worker so only one heavy job runs at a time on a 16 GB Mac.
 """
+from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
 import re
 import shutil
 import threading
+from urllib.parse import unquote
 
 import numpy as np
 
 import art2d
+import gdrive
 import rights
 import sources
 import styles
@@ -27,7 +30,7 @@ MAX_ACTIVE = 8
 
 
 class StudioV2:
-    def __init__(self, engine, runtime):
+    def __init__(self, engine, runtime, google_config=None, google_transport=None):
         self.engine = engine
         self.runtime = Path(runtime)
         self.jobs_dir = self.runtime / 'v2-jobs'
@@ -37,6 +40,12 @@ class StudioV2:
         self.store = JobStore(self.runtime / 'studio.db')
         self.rights = rights.RightsChecker(self.runtime)
         self.lock = threading.Lock()
+        self.google = gdrive.Google(gdrive.GoogleConfig(google_config), google_transport or gdrive.urllib_transport)
+        self.drive = gdrive.DriveSync(self.google, self.runtime / 'drive-queue.json', self._drive_bundle,
+                                      self._drive_tabs, lambda job_id, url: self.store.update(job_id, drive_url=url),
+                                      log=self.store.log)
+        if self.drive.snapshot() and self.google.config.public()['connected']:
+            self.drive.kick()   # finish what was queued before a restart
 
     # ---- style library (3D) --------------------------------------------
     @property
@@ -281,12 +290,13 @@ class StudioV2:
         return self.store.update(job['id'], **changes) if changes else job
 
     def list(self, kind=None):
-        return [self._refresh(j) for j in self.store.list(100, kind)]
+        queue = self.drive.snapshot()
+        return [dict(self._refresh(j), sync=queue.get(j['id'])) for j in self.store.list(100, kind)]
 
     def get(self, job_id):
         if not JOB_ID.fullmatch(job_id or ''):
             raise KeyError('job')
-        return self._refresh(self.store.get(job_id))
+        return dict(self._refresh(self.store.get(job_id)), sync=self.drive.snapshot().get(job_id))
 
     def set_rights(self, job_id, data):
         rights, reason = data.get('rights'), data.get('reason', '')
@@ -315,7 +325,10 @@ class StudioV2:
             raise ValueError('Chỉ duyệt được công việc đã xử lý xong.')
         if job['rights'] == 'yellow':
             raise ValueError('Bản quyền đang ở mức Vàng: hãy chọn Xanh hoặc Đỏ trước khi duyệt.')
-        return self.store.update(job_id, status='approved')
+        job = self.store.update(job_id, status='approved')
+        if self.google.config.public()['connected']:
+            self.drive.enqueue([job_id])
+        return self.get(job_id)
 
     def file_path(self, job_id, relative):
         if not JOB_ID.fullmatch(job_id or ''):
@@ -325,3 +338,132 @@ class StudioV2:
         if folder not in target.parents or not target.is_file():
             raise FileNotFoundError()
         return target
+
+    # ---- Google Drive + Sheet ---------------------------------------------
+    def google_status(self):
+        pending = [j['id'] for j in self.store.list(1000) if j['status'] == 'approved' and not j.get('drive_url')]
+        return {**self.drive.status(), 'unsynced': len(pending)}
+
+    def google_client(self, data):
+        self.google.config.set_client(data.get('json'))
+        return self.google_status()
+
+    def google_connect(self, redirect_uri):
+        return {'url': self.google.start(redirect_uri)}
+
+    def google_callback(self, state, code):
+        self.google.finish(state, code)
+        self.drive.kick()
+        return self.google_status()
+
+    def google_disconnect(self):
+        self.google.disconnect()
+        return self.google_status()
+
+    def google_sync(self, data):
+        """Queue one job, or every approved job not yet on Drive plus the ones that failed."""
+        if not self.google.config.public()['connected']:
+            raise ValueError('Chưa kết nối Google.')
+        job_id = data.get('job_id')
+        if job_id:
+            if self.get(job_id)['status'] != 'approved':
+                raise ValueError('Chỉ đồng bộ được job đã duyệt.')
+            ids = [job_id]
+        else:
+            failed = [j for j, e in self.drive.snapshot().items() if e['state'] == 'error']
+            ids = failed + [j['id'] for j in self.store.list(1000)
+                            if j['status'] == 'approved' and not j.get('drive_url') and j['id'] not in failed]
+        self.drive.enqueue(ids)
+        return {**self.google_status(), 'queued_now': len(ids)}
+
+    def _drive_bundle(self, job_id):
+        job = self.get(job_id)
+        created = datetime.fromisoformat(job['created_at']).astimezone()
+        files, notes, parts = [], [], ''
+        if job['kind'] == '2d':
+            folder = self.jobs_dir / job_id
+            for i, src in enumerate(sorted(folder.glob('source[12].*'))):
+                files.append((src, ('source' if i == 0 else 'source-2') + src.suffix.lower()))
+            sides = job['outputs'].get('sides', {})
+            for side, out in sides.items():
+                files.append((folder / out['file'], out['file']))
+                files.append((folder / out['preview'], out['preview']))
+                notes += [f'{side}: {w}' for w in out.get('warnings', [])]
+            files += [(p, p.name) for p in sorted(folder.glob('*.svg'))]
+            parts = ' + '.join({'front': 'Trước', 'back': 'Sau'}.get(s, s) for s in sides)
+            style = ''
+        else:
+            legacy = job.get('legacy_id')
+            try:
+                src = self._cached(job.get('source_sha256'))
+            except ValueError:
+                src = None
+            if src:
+                files.append((src, 'source' + src.suffix.lower()))
+            used = set()
+            for item in job['outputs'].get('artifacts', []):
+                relative = item['url'].split('/', 3)[3] if item.get('url', '').startswith('/files/') else None
+                if not relative:
+                    continue
+                path = self.engine.file_path(legacy, unquote(relative))
+                name = path.name if path.name not in used else f'{path.parent.name}-{path.name}'
+                used.add(name)
+                files.append((path, name))
+            previews = job['outputs'].get('previews', [])
+            if previews:
+                first = previews[0]
+                url = first.get('openai_url') or first.get('local_url') or ''
+                if url.startswith('/files/'):
+                    path = self.engine.file_path(legacy, unquote(url.split('/', 3)[3]))
+                    files.append((path, f'preview-{first.get("panel", "mockup")}{path.suffix.lower()}'))
+            panels = job['params'].get('panels') or [p.get('panel') for p in previews]
+            parts = ', '.join(p for p in panels if p)
+            template = job['params'].get('template') or ''
+            label = self.engine.style_label(template) if template and hasattr(self.engine, 'style_label') else ''
+            style = f'{label} ({template})' if label else template
+        rights_label = {'unknown': 'Chưa kiểm', 'green': 'Xanh', 'yellow': 'Vàng', 'red': 'Đỏ'}[job['rights']]
+
+        def row(urls):
+            return [gdrive.cell(job['sku']), created.strftime('%Y-%m-%d %H:%M'), job['kind'].upper(), gdrive.cell(parts),
+                    'AI' if job['mode'] == 'ai' else 'Local', gdrive.cell(job.get('source_url') or ''), gdrive.cell(style),
+                    'Đã duyệt', gdrive.link(urls['preview'], 'Xem'), gdrive.link(urls['folder'], 'Mở thư mục'),
+                    round(float(job.get('cost_usd') or 0), 4), rights_label, gdrive.cell(job.get('rights_reason') or ''),
+                    gdrive.cell('; '.join(notes)[:500]), urls['synced']]
+        return {'kind': job['kind'], 'month': created.strftime('%Y-%m'), 'sku': job['sku'],
+                'red': job['rights'] == 'red', 'files': [(p, n) for p, n in files if Path(p).is_file()], 'row': row}
+
+    def _drive_tabs(self):
+        library = [['Kiểu dáng', 'Mảnh', 'Rộng (px)', 'Cao (px)', 'Loại', 'Khuôn đã có']]
+        try:
+            catalog = self.styles()['styles']
+        except Exception:  # noqa: BLE001 - the tab is a convenience copy
+            catalog = []
+        for st in catalog:
+            names = ', '.join(t['name'] for t in st['templates'])
+            for i, panel in enumerate(st['panels']):
+                library.append([st['label'], panel['name'], panel['size'][0], panel['size'][1], panel['kind'],
+                                names if i == 0 else ''])
+        config = self.rights.config()
+        ip = [['Loại', 'Giá trị', 'SKU', 'Lý do', 'Ngày']]
+        ip += [['Từ khoá', w, '', '', ''] for w in config['keywords']]
+        ip += [['Danh sách đen (pHash)', e['hash'], e.get('sku') or '', e.get('reason') or '', e.get('added') or '']
+               for e in self.rights.blacklist()]
+        budget = getattr(self.engine, 'budget', None)
+        groups = {}
+        for entry in (budget.entries() if budget else []):
+            g = groups.setdefault(entry.get('prompt_version') or 'panel (cũ)', [0, 0, 0.0])
+            g[0] += 1
+            g[1] += 1 if entry.get('ok', True) else 0
+            g[2] += float(entry.get('usd') or 0)
+        prompts = [['Phiên bản prompt', 'Số lệnh', 'Thành công', 'Tổng chi ước tính (USD)', 'TB mỗi lệnh (USD)']]
+        prompts += [[v, n, ok, round(usd, 4), round(usd / n, 4) if n else 0] for v, (n, ok, usd) in sorted(groups.items())]
+        status = budget.status() if budget else {}
+        settings = [['Mục', 'Giá trị'],
+                    ['Quy tắc SKU', '2D-YYMMDD-NNN / 3D-YYMMDD-NNN (đếm theo ngày)'],
+                    ['File in 2D', f'{art2d.CANVAS[0]} × {art2d.CANVAS[1]} px, {art2d.DPI} DPI, PNG trong suốt'],
+                    ['Trần AI mỗi ngày (USD)', status.get('daily_usd', '')],
+                    ['Trần AI mỗi tháng (USD)', status.get('monthly_usd', '')],
+                    ['Đã chi hôm nay (ước tính)', status.get('spent_today_usd', '')],
+                    ['Đã chi tháng này (ước tính)', status.get('spent_month_usd', '')],
+                    ['Ghi chú', 'SQLite trên máy là bản gốc; Sheet là bản sao để xem và lọc.']]
+        return {'Kiểu dáng': library, 'Bản quyền': ip, 'Prompt': prompts, 'Cài đặt': settings}

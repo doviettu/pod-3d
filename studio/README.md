@@ -8,10 +8,16 @@ Mở `http://127.0.0.1:8765` sau khi chạy `studio/start.command`.
 - **3D · In tràn**: nạp mockup, tool so đường viền áo với các khuôn trong thư viện. Trùng khuôn thì chọn luôn. Ảnh khác thì chọn kiểu dáng và bấm **Tạo khuôn mới từ ảnh này**: kéo 4 góc từng mảnh trên ảnh, lưu xong là trải phẳng được (khuôn mới nằm ở `studio/templates/<kiểu>-<ngày>-<số>/`, mảnh không đánh dấu tô một màu). Chọn Local hoặc AI (OpenAI, có phí), chạy bằng engine `pod3d`. Duyệt chữ/logo và xuất PSD vẫn ở **Công cụ duyệt chi tiết** (`/legacy`).
 - **Thư viện kiểu dáng**: các kiểu (sweater, hoodie chui đầu, hoodie khoá kéo, áo thun in tràn), bộ mảnh và cỡ mảnh của từng kiểu, các khuôn kèm ảnh.
 - **Lịch sử**: mọi job có mã SKU (`2D-261028-001`), trạng thái, mức bản quyền. Danh sách lưu trong `runtime/studio.db`.
+- **Bản quyền**: mỗi job tự gắn Xanh/Vàng/Đỏ (trùng art đã đánh dấu Đỏ, từ khoá thương hiệu trong link/tên file/chữ trên art). Vàng phải chọn Xanh hoặc Đỏ trước khi duyệt. Sửa từ khoá ở tab Lịch sử. Cài `brew install tesseract` để đọc chữ trên art. Đây là bộ lọc hỗ trợ, không phải ý kiến pháp lý.
+- **Google Drive + Sheet** (tab Lịch sử): bấm Duyệt là file lên `POD Studio/2D|3D/<tháng>/<SKU>/` (job Đỏ vào `⚠ Bản quyền/`, tên file có `_IP`) và dòng của job ghi vào Sheet `POD Quản lý` (tab Jobs, Kiểu dáng, Bản quyền, Prompt, Cài đặt). Lỗi mạng thì tự thử lại sau 1, 5, 30 phút, 2 giờ. Cài một lần:
+  1. [Google Cloud](https://console.cloud.google.com/): tạo project, bật **Google Drive API** và **Google Sheets API**.
+  2. **OAuth consent screen**: External, thêm email của bạn, bấm **Publish app**. Tool chỉ xin quyền `drive.file` (chỉ thấy file do tool tạo) nên không cần Google duyệt; để ở Testing thì 7 ngày phải kết nối lại.
+  3. **Credentials → OAuth client ID → Desktop app**, tải file JSON, dán vào ô trong tab Lịch sử, bấm **Kết nối Google**.
+  Khoá và token lưu ở `~/.config/pod-studio/google.json` (quyền 600), không nằm trong repo.
 - Nút **Mở rộng** mở trình xem zoom tới từng pixel (phím `1` = 100%, `0` = vừa khung), đổi nền ca rô/trắng/tối để soi vùng trong suốt.
 - Cùng ảnh, cùng tuỳ chọn thì không chạy lại mà hiện kết quả cũ.
 
-Mã nguồn: `app.html`, `static/app.js`, `v2.py` (dịch vụ), `art2d.py` (pipeline 2D), `styles.py` (thư viện kiểu dáng, nhận dáng, tạo khuôn), `sources.py` (tải ảnh/link), `jobstore.py` (SQLite). Test: `.venv/bin/python studio/test_v2.py` và `studio/test_styles.py`.
+Mã nguồn: `app.html`, `static/app.js`, `v2.py` (dịch vụ), `art2d.py` (pipeline 2D), `styles.py` (thư viện kiểu dáng, nhận dáng, tạo khuôn), `sources.py` (tải ảnh/link), `jobstore.py` (SQLite), `rights.py` (bản quyền), `gdrive.py` (Drive + Sheet), `ai_sheet.py` (AI 1 lệnh, cache, ngân sách). Test: `.venv/bin/python studio/test_v2.py`, `test_styles.py`, `test_rights.py`, `test_gdrive.py`, `test_ai_sheet.py` (không gọi mạng, không tốn phí).
 
 ## Công cụ cũ (Codex)
 

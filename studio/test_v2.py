@@ -17,6 +17,7 @@ import art2d  # noqa: E402
 import sources  # noqa: E402
 from jobstore import JobStore  # noqa: E402
 from v2 import StudioV2  # noqa: E402
+from test_gdrive import CLIENT, FakeGoogle  # noqa: E402
 
 
 def shirt(art_bgr, text, size=(900, 800)):
@@ -176,7 +177,9 @@ class StudioV2Tests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.engine = FakeEngine()
-        self.v2 = StudioV2(self.engine, self.tmp.name)
+        self.fake_google = FakeGoogle()
+        self.v2 = StudioV2(self.engine, self.tmp.name, google_config=Path(self.tmp.name) / 'google.json',
+                           google_transport=self.fake_google)
         self.image = base64.b64encode(jpeg(np.concatenate(
             [shirt((240, 200, 30), 'F'), shirt((30, 200, 240), 'B')], 1))).decode()
 
@@ -228,6 +231,33 @@ class StudioV2Tests(unittest.TestCase):
             self.assertEqual(self.v2.get(again['id'])['rights'], 'red')
             self.v2.set_rights(job['id'], {'rights': 'green', 'reason': 'đã mua quyền'})
             self.assertEqual(self.v2.rights_config()['blacklist_count'], 0)
+
+    def test_approve_syncs_files_and_sheet_row_to_drive(self):
+        sid = self.v2.inspect({'sources': [{'image_base64': self.image, 'filename': 'my-shirt.jpg'}]})['sources'][0]['source_id']
+        job = self.v2.submit({'kind': '2d', 'sources': [{'source_id': sid}]})
+        self.engine.executor.submit(lambda: None).result()
+        self.v2.store.update(job['id'], rights='green')
+        with self.assertRaises(ValueError):
+            self.v2.google_sync({})            # not connected yet
+        self.v2.google_client({'json': CLIENT})
+        url = self.v2.google_connect('http://127.0.0.1:8765/google/callback')['url']
+        state = url.split('state=')[1].split('&')[0]
+        self.v2.google_callback(state, 'good-code')
+        self.v2.approve(job['id'])
+        self.v2.drive.thread.join(10)
+        done = self.v2.get(job['id'])
+        self.assertTrue(done['drive_url'].startswith('https://drive.google.com/drive/folders/'), done)
+        self.assertIsNone(done['sync'])
+        month = done['created_at'][:7]
+        names = {self.fake_google.path_of(f) for f in self.fake_google.files}
+        base = f'POD Studio/2D/{month}/{done["sku"]}/'
+        self.assertTrue({base + n for n in ('source.jpg', 'front.png', 'back.png', 'front-preview.jpg')} <= names, names)
+        book = self.fake_google.sheets[self.v2.google.config.load()['sheet_id']]
+        row = book['Jobs'][1]
+        self.assertEqual((row[0], row[2], row[3], row[11]), (done['sku'], '2D', 'Trước + Sau', 'Xanh'))
+        self.assertTrue(any(r[:1] == ['Từ khoá'] for r in book['Bản quyền']))
+        self.assertEqual(book['Cài đặt'][2][1], '4500 × 5400 px, 300 DPI, PNG trong suốt')
+        self.assertEqual(self.v2.google_status()['unsynced'], 0)
 
     def test_bad_input(self):
         for data in ({'kind': '4d'}, {'kind': '2d', 'sources': []},

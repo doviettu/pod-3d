@@ -116,3 +116,6 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 .rights a { margin-left: 8px; color: var(--accent); }
 .rights-panel { margin-top: 16px; } .rights-panel summary { cursor: pointer; }
 #rights-keywords { width: 100%; margin-top: 4px; font: 13px/1.4 ui-monospace, monospace; }
+
+.google-panel ol.steps { padding-left: 1.2em; line-height: 1.5; }
+.google-panel textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }

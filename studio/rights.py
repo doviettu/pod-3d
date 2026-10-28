@@ -125,6 +125,9 @@ class RightsChecker:
                 'ocr': ocr_available(),
                 'note': 'Bộ lọc hỗ trợ, không phải ý kiến pháp lý. Xanh nghĩa là chưa thấy dấu hiệu.'}
 
+    def blacklist(self):
+        return self._load()['blacklist']
+
     def set_keywords(self, words):
         if not isinstance(words, list) or len(words) > 2000 or not all(isinstance(w, str) and len(w) <= 80 for w in words):
             raise ValueError('Danh sách từ khoá không hợp lệ (tối đa 2000 từ, mỗi từ 80 ký tự).')

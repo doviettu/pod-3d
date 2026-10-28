@@ -99,7 +99,7 @@ Prompt không viết tay mỗi lần mà **ghép từ khuôn**, để giống h�
 
 ## Google Drive và Sheet
 
-Đăng nhập Google bằng OAuth (ứng dụng desktop, scope `drive.file` + `spreadsheets`: chỉ đụng tới file do tool tạo).
+Đăng nhập Google bằng OAuth (ứng dụng desktop, chỉ scope `drive.file`: chỉ đụng tới file do tool tạo; Sheets API nhận scope này cho Sheet do tool tạo, nên không cần `spreadsheets`).
 
 ```
 POD Studio/
@@ -153,7 +153,7 @@ Chạy tự động cho mọi job, ngay sau bước tìm vùng art, trước khi
 - [x] 5. Trình xem OpenSeadragon + so sánh trước/sau → Verify: zoom tới pixel trên mảnh 6048 × 6559 mượt.
 - [x] 6. Thư viện kiểu dáng + nhận dáng tự động → Verify: ảnh sweater/hoodie mẫu được nhận đúng kiểu, ảnh lạ hỏi chọn tay. (Có thêm: tạo khuôn mới trên trang bằng 4 góc mỗi mảnh, tab Thư viện.)
 - [x] 7. Nối 3D Local và 3D AI vào luồng mới (khuôn prompt, cache, sheet 1 lệnh, trần ngân sách) → Verify: mockup Home Alone ra đủ 6 mảnh theo cả 2 chế độ; chạy AI lần 2 cùng ảnh không phát sinh lệnh mới. (Đã làm: sheet 1 lệnh, cache theo hash, tự chọn mảnh Local yếu, trần ngày/tháng + sổ chi tiêu, prompt ghép khuôn có phiên bản. Chưa làm: lệnh mô tả thiết kế bằng model đọc ảnh, chạy thử `low` trước, Batch API.)
-- [ ] 8. Google Drive + Sheet (OAuth, tạo cây thư mục, ghi dòng) → Verify: duyệt 1 job thì thấy thư mục và dòng mới trong Sheet.
+- [x] 8. Google Drive + Sheet (OAuth, tạo cây thư mục, ghi dòng) → Verify: duyệt 1 job thì thấy thư mục và dòng mới trong Sheet. (Đã làm: OAuth Desktop + PKCE chỉ quyền `drive.file`, cây thư mục theo tháng, job Đỏ vào `⚠ Bản quyền/` với hậu tố `_IP`, tải lên theo đoạn 8 MB, Sheet 5 tab, dòng ghi đè theo SKU, hàng đợi thử lại, nút Đồng bộ lại. Kiểm bằng Google giả lập trong test; chờ bạn tạo client OAuth để chạy thật. Không dùng `=IMAGE()` vì phải công khai file; cột Xem trước là link.)
 - [x] 8b. Kiểm tra bản quyền (pHash, OCR + từ khoá, gộp vào lệnh AI mô tả, nhãn Xanh/Vàng/Đỏ, thư mục và cột Sheet) → Verify: mockup Home Alone bị gắn Đỏ (Disney/Fox); một art chữ tự viết ra Xanh; đổi một job sang Đỏ thì ảnh trùng lần sau tự Đỏ. (Đã làm: pHash + danh sách đen, từ khoá thương hiệu trong link/tên file và chữ trên art (OCR Tesseract, tuỳ chọn), nhãn Xanh/Vàng/Đỏ trên thẻ job, nút Google Lens/TinEye/USPTO, sửa từ khoá trong tab Lịch sử. Mockup Home Alone chỉ tự Vàng/Đỏ khi link/tên/chữ có từ khoá. Chưa làm: lớp AI nhận logo/nhân vật (đợi lệnh mô tả thiết kế), thư mục và cột Sheet (bước 8).)
 - [ ] 9. Kiểm tra tổng: chạy 3 job 2D + 2 job 3D từ đầu tới Drive → Verify: Sheet có 5 dòng, mọi link mở được.
 
