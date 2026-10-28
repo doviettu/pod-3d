@@ -117,7 +117,8 @@ def main():
     import socket
     with socket.socket() as probe:
         if probe.connect_ex(('127.0.0.1', 8766)) == 0:
-            raise RuntimeError('Cổng online đang được dùng; không mở thêm phiên.')
+            raise RuntimeError('Cổng online 8766 đang bị một phiên online khác giữ (thường là cửa sổ '
+                               'start-online.command cũ). Tắt phiên đó, ví dụ: lsof -ti tcp:8766 | xargs kill')
     password = credential()
     children = []
     def interrupt(*_):
