@@ -1,0 +1,13 @@
+{
+  "name": "hoodie_back_front_34",
+  "dpi": 300,
+  "note": "Ghost hoodie, back view left (behind) + front view right in 3/4. Drawn from geometry (python -m pod3d layout), no sample print files.",
+  "panels": [
+    {"name": "Front", "size": [5100, 6300], "source": "unwrap", "method": "quad", "quad": [[0.44, 0.36], [0.83, 0.38], [0.83, 0.89], [0.47, 0.89]], "center": 0.61},
+    {"name": "Back", "size": [5100, 6300], "source": "unwrap", "method": "quad", "quad": [[0.15, 0.15], [0.5, 0.15], [0.47, 0.63], [0.15, 0.63]], "center": 0.31,
+     "hide": [[[0.44, 0.2], [0.44, 0.37], [0.41, 0.4], [0.36, 0.62], [0.36, 1.0], [1.0, 1.0], [1.0, 0.22]]]},
+    {"name": "Hood", "size": [1800, 1150], "source": "unwrap", "method": "quad", "quad": [[0.18, 0.01], [0.45, 0.01], [0.45, 0.17], [0.18, 0.17]], "center": 0.31},
+    {"name": "Left", "size": [1500, 2100], "source": "unwrap", "method": "tube", "curve": [[0.87, 0.4], [0.93, 0.65], [0.955, 0.95]], "halfwidth": 0.04},
+    {"name": "Right", "size": [1500, 2100], "source": "unwrap", "method": "tube", "curve": [[0.42, 0.4], [0.38, 0.62], [0.37, 0.95]], "halfwidth": 0.045}
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "name": "hoodie_model_front_back",
+  "dpi": 300,
+  "note": "Hoodie worn by a model, front view left + back view right, white background. Drawn from geometry (python -m pod3d layout), no sample print files.",
+  "panels": [
+    {"name": "Front", "size": [5100, 6300], "source": "unwrap", "method": "quad", "quad": [[0.12, 0.26], [0.46, 0.26], [0.44, 0.7], [0.1, 0.7]], "center": 0.275},
+    {"name": "Back", "size": [5100, 6300], "source": "unwrap", "method": "quad", "quad": [[0.64, 0.18], [0.86, 0.18], [0.87, 0.47], [0.65, 0.47]], "center": 0.765,
+     "hide": [[[0.67, 0.0], [0.85, 0.0], [0.85, 0.2], [0.76, 0.24], [0.67, 0.2]]]},
+    {"name": "Hood", "size": [1800, 1150], "source": "unwrap", "method": "quad", "quad": [[0.67, 0.11], [0.85, 0.11], [0.85, 0.21], [0.67, 0.21]], "center": 0.765},
+    {"name": "Left", "size": [1500, 2100], "source": "unwrap", "method": "tube", "curve": [[0.46, 0.28], [0.52, 0.45], [0.53, 0.6]], "halfwidth": 0.04},
+    {"name": "Right", "size": [1500, 2100], "source": "unwrap", "method": "tube", "curve": [[0.11, 0.28], [0.05, 0.45], [0.04, 0.62]], "halfwidth": 0.045}
+  ]
+}

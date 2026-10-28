@@ -15,9 +15,14 @@ class Panel:
     sample: tuple = None  # mockup area to sample the color of a solid panel
     copy_of: str = None  # for source == "copy"
     mirror: bool = False  # flip horizontally after copy
-    method: str = "match"  # "match": feature matching + flow; "strip": band panel along a curve (sleeves)
-    curve: list = None  # strip method: mockup polyline from seam to cuff, normalized
-    halfwidth: float = 0.03  # strip method: trusted half width across the curve, normalized
+    method: str = "match"  # "match": feature matching + flow; "strip": band panel along a curve (sleeves);
+    # "quad" / "tube": drawn from geometry, no sample print file (see geometry.py)
+    curve: list = None  # strip/tube method: mockup polyline from seam to cuff, normalized
+    halfwidth: float = 0.03  # strip/tube method: half width across the curve, normalized
+    quad: list = None  # quad method: mockup corners TL, TR, BR, BL, normalized
+    center: float = None  # quad method: mockup x of the panel's middle line, for a 3/4 view
+    wrap: float = 0.6  # quad/tube: 0 flat cloth, 1 full cylinder
+    hide: list = None  # quad/tube: mockup polygons covering this panel (another view in front)
     hint: str = ""  # marks: where to click, shown on the marking page
 
 
@@ -61,6 +66,10 @@ def load(name: str) -> Template:
             curve=p.get("curve"),
             halfwidth=p.get("halfwidth", 0.03),
             hint=p.get("hint", ""),
+            quad=p.get("quad"),
+            center=p.get("center"),
+            wrap=p.get("wrap", 0.6),
+            hide=p.get("hide"),
         )
         for p in data["panels"]
     ]

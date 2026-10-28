@@ -8,3 +8,4 @@ models/*.pt
 ._*
 .env
 *.key
+samples/
