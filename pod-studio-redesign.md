@@ -86,7 +86,7 @@ Prompt không viết tay mỗi lần mà **ghép từ khuôn**, để giống h�
 - Mỗi kiểu dáng lưu 1–2 ví dụ đạt và lỗi thường gặp, đưa vào phần luật.
 - Mỗi lệnh ghi lại phiên bản prompt + điểm chất lượng; prompt nào cho điểm cao thì thành mặc định. Theo dõi trên tab **Prompt** của Sheet.
 
-**Thư viện kiểu dáng** (trang riêng): mỗi kiểu gồm tên, 6 mảnh và kích thước xưởng, ảnh tham chiếu, các map đã hiệu chỉnh theo góc chụp, trạng thái "đã duyệt in thật".
+**Thư viện kiểu dáng** (trang riêng): mỗi kiểu gồm tên, bộ mảnh riêng và kích thước (mảnh chính tối thiểu 4500 × 5400), ảnh tham chiếu, các map đã hiệu chỉnh theo góc chụp, trạng thái "đã duyệt in thật".
 
 ## Xem kết quả
 
@@ -129,12 +129,12 @@ SQLite vẫn là gốc; Sheet là bản sao để xem và lọc. Đồng bộ ch
 
 Thứ tự: 1 → 2 → (3, 5 song song) → 4 → 6 → 7 → 8 → 9. Mỗi bước là một PR nhỏ.
 
-## Cần chốt
+## Đã chốt (28/10)
 
-1. **6 thành phần của 3D là những mảnh nào?** Sweater mẫu có Front, Back, Sleeve, Collar, Hem, Wrist. Hoodie mẫu chỉ có 5 (Front, Back, Hood, Left, Right). Mỗi kiểu dáng có bộ 6 mảnh riêng, hay một bộ chung?
-2. **Kích thước xưởng** cho hoodie, áo thun AOP (Codex đang để "chưa xác nhận").
-3. **API AI**: giữ OpenAI gpt-image như Codex đã nối, hay thêm Gemini? Ngân sách mỗi tháng?
-4. **2D: vùng in 4500 × 5400 cố định** cho cả mặt trước lẫn sau, hay mỗi mặt một cỡ (ví dụ trước in ngực trái nhỏ, sau in lưng to)?
+1. **Mỗi kiểu dáng có bộ mảnh riêng** (sweater 6 mảnh, hoodie theo bộ của hoodie…), khai báo trong thư viện kiểu dáng.
+2. **Chuẩn kích thước**: mảnh chính (thân, tay, mũ) tối thiểu 4500 × 5400 px, 300 DPI; lớn hơn vẫn đạt. Mảnh hẹp (cổ, gấu, bo tay) giữ đúng tỉ lệ khuôn ở 300 DPI. Kiểu dáng có file mẫu xưởng thì theo file mẫu.
+3. **AI**: chỉ dùng OpenAI (gpt-image), bỏ Gemini.
+4. **2D**: canvas cố định 4500 × 5400 cho cả mặt trước và mặt sau.
 
 ## Gợi ý thêm để dự án tốt hơn
 
