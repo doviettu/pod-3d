@@ -28,8 +28,8 @@ Trình duyệt ── FastAPI (127.0.0.1) ── Hàng đợi 1 worker (SQLite)
                    └─ Google Drive + Sheets (đồng bộ sau khi duyệt)
 ```
 
-- **Backend**: FastAPI + SQLite (nguồn dữ liệu chính). Một worker chạy tuần tự để vừa RAM 16 GB.
-- **Frontend**: HTML + Alpine.js, không cần build. Xem ảnh lớn bằng OpenSeadragon (BSD) với ảnh lát DZI tạo bởi pyvips: zoom tới từng pixel của file 6000 px mà không lag.
+- **Backend**: máy chủ Python sẵn có của Codex (giữ nguyên phần đăng nhập online đã kiểm thử) + SQLite (nguồn dữ liệu chính). Một worker chạy tuần tự để vừa RAM 16 GB. *Đổi so với bản đầu:* chưa chuyển sang FastAPI vì phải viết lại phần đăng nhập; xét lại nếu máy chủ hiện tại thành nút thắt.
+- **Frontend**: HTML + JavaScript thuần, không cần build. Xem ảnh lớn bằng OpenSeadragon (BSD) với ảnh lát DZI tạo bởi pyvips: zoom tới từng pixel của file 6000 px mà không lag.
 - **Truy cập từ xa**: giữ Cloudflare tunnel + đăng nhập của Codex.
 
 ## Luồng 2D
@@ -145,12 +145,12 @@ Chạy tự động cho mọi job, ngay sau bước tìm vùng art, trước khi
 
 ## Việc cần làm
 
-- [ ] 1. Đưa `pod-studio` vào repo (`studio/`), loại `runtime/`, `.vendor/`, `node_modules/`, khóa API → Verify: `git status` sạch, test cũ của Codex vẫn chạy.
-- [ ] 2. Dựng vỏ FastAPI + SQLite jobs + worker, chuyển dần route của `studio.py` → Verify: `curl 127.0.0.1:8765/api/status` trả 200, job cũ hiện trong lịch sử.
-- [ ] 3. Trang chính 2 tab 2D / 3D, ô nạp ảnh/link/dán → Verify: dán link ảnh, thấy ảnh xem trước.
-- [ ] 4. Pipeline 2D (tìm vùng, phẳng, bỏ nền, phóng to, canvas 4500 × 5400) → Verify: 5 ảnh mẫu ra PNG đúng cỡ, có alpha, 300 DPI; 1 ảnh trước + sau cạnh nhau ra đủ `front.png` và `back.png`.
+- [x] 1. Đưa `pod-studio` vào repo (`studio/`), loại `runtime/`, `.vendor/`, `node_modules/`, khóa API → Verify: `git status` sạch, test cũ của Codex vẫn chạy.
+- [x] 2. SQLite jobs + hàng đợi chung trên máy chủ sẵn có (chưa FastAPI) → Verify: `curl 127.0.0.1:8765/api/status` trả 200, job cũ hiện trong lịch sử.
+- [x] 3. Trang chính 2 tab 2D / 3D, ô nạp ảnh/link/dán → Verify: dán link ảnh, thấy ảnh xem trước.
+- [x] 4. Pipeline 2D (tìm vùng, phẳng, bỏ nền, phóng to, canvas 4500 × 5400) → Verify: 5 ảnh mẫu ra PNG đúng cỡ, có alpha, 300 DPI; 1 ảnh trước + sau cạnh nhau ra đủ `front.png` và `back.png`.
 - [ ] 4b. Bộ test vàng + 5 kỹ thuật ưu tiên trong `docs/local-quality.md` → Verify: bảng điểm SSIM/ΔE trước-sau trên 3 bộ mẫu, chỉ bật kỹ thuật tăng điểm.
-- [ ] 5. Trình xem OpenSeadragon + so sánh trước/sau → Verify: zoom tới pixel trên mảnh 6048 × 6559 mượt.
+- [x] 5. Trình xem OpenSeadragon + so sánh trước/sau → Verify: zoom tới pixel trên mảnh 6048 × 6559 mượt.
 - [ ] 6. Thư viện kiểu dáng + nhận dáng tự động → Verify: ảnh sweater/hoodie mẫu được nhận đúng kiểu, ảnh lạ hỏi chọn tay.
 - [ ] 7. Nối 3D Local và 3D AI vào luồng mới (khuôn prompt, cache, sheet 1 lệnh, trần ngân sách) → Verify: mockup Home Alone ra đủ 6 mảnh theo cả 2 chế độ; chạy AI lần 2 cùng ảnh không phát sinh lệnh mới.
 - [ ] 8. Google Drive + Sheet (OAuth, tạo cây thư mục, ghi dòng) → Verify: duyệt 1 job thì thấy thư mục và dòng mới trong Sheet.

@@ -1,5 +1,19 @@
 # POD Studio trên Mac
 
+## Giao diện v2 (mặc định)
+
+Mở `http://127.0.0.1:8765` sau khi chạy `studio/start.command`.
+
+- **2D · In 1–2 mặt**: kéo thả, dán (⌘V) hoặc dán link ảnh áo. Link Etsy/Shopify/Amazon/Pinterest tự đổi về bản ảnh lớn nhất. Tool tự tìm áo và vùng art, hiện khung Trước/Sau; kéo trên ảnh để vẽ lại khung. Kết quả mỗi mặt là PNG 4500 × 5400 px, 300 DPI, nền trong suốt (`runtime/v2-jobs/<mã>/front.png`, `back.png`).
+- **3D · In tràn**: nạp mockup, tool gợi ý kiểu dáng, chọn Local hoặc AI (OpenAI, có phí), chạy bằng engine `pod3d`. Duyệt chữ/logo và xuất PSD vẫn ở **Công cụ duyệt chi tiết** (`/legacy`).
+- **Lịch sử**: mọi job có mã SKU (`2D-261028-001`), trạng thái, mức bản quyền. Danh sách lưu trong `runtime/studio.db`.
+- Nút **Mở rộng** mở trình xem zoom tới từng pixel (phím `1` = 100%, `0` = vừa khung), đổi nền ca rô/trắng/tối để soi vùng trong suốt.
+- Cùng ảnh, cùng tuỳ chọn thì không chạy lại mà hiện kết quả cũ.
+
+Mã nguồn: `app.html`, `static/app.js`, `v2.py` (dịch vụ), `art2d.py` (pipeline 2D), `sources.py` (tải ảnh/link), `jobstore.py` (SQLite). Test: `.venv/bin/python studio/test_v2.py`.
+
+## Công cụ cũ (Codex)
+
 Giao diện local cho engine `pod3d` ở thư mục gốc repo. Chạy các lệnh dưới từ thư mục gốc repo.
 Ứng dụng dùng lại template, model và mã hiện có; không sửa dữ liệu mẫu hoặc kết quả cũ.
 Máy chủ dùng Python chuẩn; xử lý ảnh dùng môi trường `.venv` hiện có. Công cụ hậu kỳ được cài riêng trong workspace, không thay môi trường engine gốc.

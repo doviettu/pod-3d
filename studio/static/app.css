@@ -1,0 +1,70 @@
+:root {
+  --bg: #f4f6f8; --card: #fff; --line: #e0e6ed; --text: #233448; --muted: #5e6e82;
+  --accent: #2463dc; --accent-ink: #fff; --warn: #9a6200; --bad: #b42318; --good: #12805c;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #11161d; --card: #1a212b; --line: #2b3542; --text: #e3e9f0; --muted: #9aa8b8;
+          --accent: #6e9bff; --accent-ink: #0b1220; --warn: #f0b44c; --bad: #ff7b6b; --good: #4fd1a1; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, sans-serif; }
+.top { display: flex; align-items: center; gap: 24px; padding: 12px 24px; background: var(--card); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+.brand { font-weight: 750; color: var(--accent); }
+.tabs { display: flex; gap: 4px; }
+.tabs button { border: 0; background: none; color: var(--muted); padding: 8px 14px; border-radius: 8px; font: inherit; cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--bg); color: var(--text); font-weight: 650; }
+.legacy { margin-left: auto; color: var(--muted); font-size: 13px; }
+main { max-width: 1280px; margin: 0 auto; padding: 24px 16px 64px; }
+.grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+@media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+h2 { font-size: 16px; margin: 0 0 12px; }
+.muted { color: var(--muted); font-size: 13px; }
+.drop { border: 2px dashed var(--line); border-radius: 12px; padding: 22px; text-align: center; cursor: pointer; }
+.drop.over, .drop:focus-visible { border-color: var(--accent); outline: none; }
+.drop p { margin: 4px 0; }
+.link { color: var(--accent); cursor: pointer; text-decoration: underline; }
+.url-row { display: flex; gap: 8px; margin-top: 10px; }
+.url-row input { flex: 1; min-width: 0; }
+input[type=url], select, textarea { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+button, .button, #viewer-download { font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; text-decoration: none; }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 650; width: 100%; margin-top: 12px; padding: 10px; }
+fieldset { border: 1px solid var(--line); border-radius: 10px; margin: 0 0 12px; padding: 8px 12px; }
+fieldset label { display: inline-flex; gap: 6px; margin-right: 14px; align-items: center; }
+label.block { display: block; margin-bottom: 8px; } label.block select { display: block; width: 100%; margin-top: 4px; }
+label.check { display: flex; gap: 6px; align-items: center; }
+.note { min-height: 1.5em; font-size: 13px; color: var(--warn); }
+.note.error { color: var(--bad); }
+.sources { display: grid; gap: 12px; margin-top: 12px; }
+.source { position: relative; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.source .stage { position: relative; user-select: none; touch-action: none; cursor: crosshair; }
+.source img { display: block; width: 100%; height: auto; }
+.source .meta { display: flex; justify-content: space-between; gap: 8px; padding: 6px 10px; font-size: 13px; flex-wrap: wrap; }
+.box { position: absolute; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); pointer-events: none; }
+.box.back { border-color: #d9480f; background: rgba(217, 72, 15, .12); }
+.box span { position: absolute; top: -1px; left: -1px; background: inherit; background-color: var(--accent); color: var(--accent-ink); font-size: 12px; padding: 0 6px; border-radius: 0 0 6px 0; }
+.box.back span { background-color: #d9480f; color: #fff; }
+.chips { display: flex; gap: 6px; }
+.chips button { padding: 2px 8px; font-size: 12px; }
+.chips button.active { border-color: var(--accent); color: var(--accent); }
+.results { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin-top: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+.card .thumb { aspect-ratio: 5 / 6; background: var(--bg); display: grid; place-items: center; cursor: zoom-in; }
+.card .thumb img { max-width: 100%; max-height: 100%; }
+.card .body { padding: 10px 12px; display: grid; gap: 8px; }
+.card .actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.card .warn { color: var(--warn); font-size: 13px; }
+.badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); }
+.badge.green { color: var(--good); border-color: var(--good); } .badge.yellow { color: var(--warn); border-color: var(--warn); }
+.badge.red { color: var(--bad); border-color: var(--bad); }
+.row { display: flex; justify-content: space-between; align-items: center; }
+.jobs { width: 100%; border-collapse: collapse; font-size: 14px; }
+.jobs th, .jobs td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); }
+.checker { background-color: #fff; background-image: linear-gradient(45deg, #e5e5e5 25%, transparent 25%), linear-gradient(-45deg, #e5e5e5 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #e5e5e5 75%), linear-gradient(-45deg, transparent 75%, #e5e5e5 75%); background-size: 24px 24px; background-position: 0 0, 0 12px, 12px -12px, -12px 0; }
+#viewer { width: 100vw; height: 100vh; max-width: none; max-height: none; margin: 0; padding: 0; border: 0; background: #111; }
+#viewer::backdrop { background: rgba(0, 0, 0, .7); }
+.viewer-bar { display: flex; gap: 10px; align-items: center; padding: 8px 14px; background: var(--card); color: var(--text); flex-wrap: wrap; }
+.viewer-bar .muted { flex: 1; }
+#osd { width: 100%; height: calc(100vh - 52px); }
+#osd.dark { background: #222; } #osd.white { background: #fff; }

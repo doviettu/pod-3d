@@ -33,6 +33,7 @@ from masked_repair import repair_image
 from product_templates import ProductTemplates
 from template_detection import detect_template
 from market_library import load_market_library
+from v2 import StudioV2
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_ENGINE = HERE.parent if (HERE.parent / "pod3d").is_dir() else Path.home() / "pod-3d"
@@ -40,6 +41,9 @@ MAX_UPLOAD = 32 * 1024 * 1024
 MAX_BODY = 45 * 1024 * 1024
 MAX_PIXELS = 50_000_000
 JOB_ID = re.compile(r"[a-f0-9]{32}")
+STATIC = {"/app.js": ("app.js", "text/javascript; charset=utf-8"),
+          "/app.css": ("app.css", "text/css; charset=utf-8"),
+          "/vendor/openseadragon.min.js": ("openseadragon.min.js", "text/javascript; charset=utf-8")}
 
 
 def now():
@@ -581,7 +585,13 @@ class Handler(BaseHTTPRequestHandler):
         engine = self.server.engine
         try:
             if path in ("/", "/index.html"):
+                self.send_bytes(200, (HERE / "app.html").read_bytes(), "text/html; charset=utf-8")
+            elif path == "/legacy":
                 self.send_bytes(200, (HERE / "index.html").read_bytes(), "text/html; charset=utf-8")
+            elif path in STATIC:
+                self.send_bytes(200, (HERE / "static" / STATIC[path][0]).read_bytes(), STATIC[path][1])
+            elif path.startswith("/api/v2/") or path.startswith("/v2files/"):
+                self.v2_get(path)
             elif re.fullmatch(r'/templates/[a-z][a-z0-9_-]{0,63}/reference[.]jpg', path):
                 name = path.split('/')[2]
                 target = engine.templates.thumbnail_path(name) if hasattr(engine.templates, 'thumbnail_path') else engine.templates.reference_path(name)
@@ -629,6 +639,42 @@ class Handler(BaseHTTPRequestHandler):
         except (FileNotFoundError, ValueError, KeyError):
             self.send_json(404, {"error": "Không tìm thấy nội dung."})
 
+    def v2_get(self, path):
+        v2 = self.server.v2
+        query = parse_qs(urlsplit(self.path).query)
+        if path == "/api/v2/jobs":
+            kind = query.get("kind", [None])[0]
+            self.send_json(200, v2.list(kind if kind in ("2d", "3d") else None))
+        elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}", path):
+            self.send_json(200, v2.get(path.rsplit("/", 1)[1]))
+        elif re.fullmatch(r"/api/v2/sources/[a-f0-9]{64}", path):
+            target = v2.source_file(path.rsplit("/", 1)[1])
+            self.send_file(target)
+        elif path.startswith("/v2files/"):
+            parts = path.split("/", 3)
+            if len(parts) != 4:
+                raise FileNotFoundError()
+            self.send_file(v2.file_path(parts[2], unquote(parts[3])))
+        else:
+            raise FileNotFoundError()
+
+    def send_file(self, target):
+        kind = {".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".json": "application/json",
+                ".zip": "application/zip", ".dzi": "application/xml"}.get(target.suffix)
+        if kind is None:
+            raise FileNotFoundError()
+        self.send_response(200)
+        self.send_header("Content-Type", kind)
+        self.send_header("Content-Length", str(target.stat().st_size))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "private, max-age=3600")
+        if "download" in parse_qs(urlsplit(self.path).query):
+            self.send_header("Content-Disposition", f'attachment; filename="{target.name}"')
+        self.end_headers()
+        with target.open("rb") as stream:
+            while block := stream.read(1024 * 1024):
+                self.wfile.write(block)
+
     def do_POST(self):
         if not self.headers_ok():
             self.send_json(403, {"error": "Chỉ nhận yêu cầu từ giao diện local."})
@@ -639,7 +685,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(415, {"error": "Yêu cầu phải có định dạng JSON."})
             return
         length = self.headers.get("Content-Length", "")
-        limit = MAX_BODY if self.path in ('/api/jobs', '/api/fonts', '/api/detect-template') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review', self.path) else 128 * 1024 if self.path == '/api/design-plan' else 16 * 1024
+        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review', self.path) else 128 * 1024 if self.path == '/api/design-plan' else 16 * 1024
         if not length.isdigit() or len(length) > 9 or not 0 < int(length) <= limit:
             self.send_json(413, {"error": "Dữ liệu quá lớn hoặc thiếu độ dài."})
             return
@@ -648,7 +694,15 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError("Yêu cầu phải là một đối tượng JSON.")
             engine = self.server.engine
-            if self.path == "/api/settings":
+            if self.path == "/api/v2/inspect":
+                self.send_json(200, self.server.v2.inspect(data))
+            elif self.path == "/api/v2/jobs":
+                self.send_json(202, self.server.v2.submit(data))
+            elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/rights", self.path):
+                self.send_json(200, self.server.v2.set_rights(self.path.split("/")[4], data))
+            elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/approve", self.path):
+                self.send_json(200, self.server.v2.approve(self.path.split("/")[4]))
+            elif self.path == "/api/settings":
                 allowed = {"api_key", "model", "image_size", "quality"}
                 if not set(data) <= allowed:
                     raise ValueError("Cấu hình không hợp lệ.")
@@ -669,6 +723,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, engine.postprocess(parts[3], parts[4], data))
             else:
                 self.send_json(404, {"error": "Không tìm thấy chức năng."})
+        except KeyError:
+            self.send_json(404, {"error": "Không tìm thấy công việc."})
         except (ValueError, OSError, RuntimeError, TypeError, RecursionError) as exc:
             message = str(exc)
             key = self.server.engine.settings.api_key
@@ -693,6 +749,7 @@ def main():
         return
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     server.engine = engine
+    server.v2 = StudioV2(engine, args.jobs_dir.parent)
     server.online_auth = OnlineAuth(HERE / 'runtime/online/access.json')
     print(f"POD Studio: http://127.0.0.1:{server.server_port}", flush=True)
     print("Chế độ local mặc định. OpenAI chỉ phát sinh phí khi chọn và bắt đầu công việc.", flush=True)

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>POD Studio</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand">POD Studio</div>
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="2d" aria-selected="true">2D · In 1–2 mặt</button>
+    <button role="tab" data-tab="3d" aria-selected="false">3D · In tràn</button>
+    <button role="tab" data-tab="history" aria-selected="false">Lịch sử</button>
+  </nav>
+  <a class="legacy" href="/legacy">Công cụ duyệt chi tiết</a>
+</header>
+
+<main>
+  <!-- 2D -->
+  <section id="tab-2d" class="tab">
+    <div class="grid">
+      <div class="panel">
+        <h2>1. Nạp ảnh áo</h2>
+        <div class="drop" data-for="2d" tabindex="0">
+          <p><b>Kéo thả</b>, <b>dán (⌘V)</b> hoặc <label class="link">chọn file<input type="file" accept="image/jpeg,image/png,image/webp" hidden multiple></label></p>
+          <p class="muted">Tối đa 2 ảnh: ảnh 2 mặt cạnh nhau, hoặc ảnh trước + ảnh sau riêng.</p>
+        </div>
+        <form class="url-row" data-for="2d">
+          <input type="url" placeholder="Hoặc dán link ảnh (Etsy, Shopify, Amazon… tự lấy bản lớn nhất)" required>
+          <button>Tải</button>
+        </form>
+        <div class="sources" id="sources-2d"></div>
+      </div>
+      <div class="panel">
+        <h2>2. Tuỳ chọn</h2>
+        <fieldset>
+          <legend>Mặt in</legend>
+          <label><input type="radio" name="sides" value="auto" checked> Tự đoán</label>
+          <label><input type="radio" name="sides" value="front"> Trước</label>
+          <label><input type="radio" name="sides" value="back"> Sau</label>
+          <label><input type="radio" name="sides" value="both"> Cả 2 mặt</label>
+        </fieldset>
+        <fieldset>
+          <legend>Nền</legend>
+          <label><input type="radio" name="background" value="remove" checked> Bỏ màu vải (PNG trong suốt)</label>
+          <label><input type="radio" name="background" value="keep"> Giữ nguyên khối</label>
+        </fieldset>
+        <p class="muted">Kết quả: mỗi mặt 1 file PNG 4500 × 5400 px, 300 DPI. Kéo trên ảnh để vẽ lại khung art nếu tự nhận sai.</p>
+        <button class="primary" id="run-2d" disabled>Tách art</button>
+        <p class="note" id="note-2d"></p>
+      </div>
+    </div>
+    <div id="results-2d" class="results"></div>
+  </section>
+
+  <!-- 3D -->
+  <section id="tab-3d" class="tab" hidden>
+    <div class="grid">
+      <div class="panel">
+        <h2>1. Nạp ảnh mockup</h2>
+        <div class="drop" data-for="3d" tabindex="0">
+          <p><b>Kéo thả</b>, <b>dán (⌘V)</b> hoặc <label class="link">chọn file<input type="file" accept="image/jpeg,image/png,image/webp" hidden></label></p>
+        </div>
+        <form class="url-row" data-for="3d">
+          <input type="url" placeholder="Hoặc dán link ảnh mockup" required>
+          <button>Tải</button>
+        </form>
+        <div class="sources" id="sources-3d"></div>
+      </div>
+      <div class="panel">
+        <h2>2. Kiểu dáng và chế độ</h2>
+        <label class="block">Kiểu dáng
+          <select id="template"></select>
+        </label>
+        <p class="muted" id="detect-3d"></p>
+        <fieldset>
+          <legend>Chế độ</legend>
+          <label><input type="radio" name="mode3d" value="local" checked> Local (miễn phí)</label>
+          <label><input type="radio" name="mode3d" value="ai"> AI · OpenAI (có phí)</label>
+        </fieldset>
+        <fieldset id="panels-ai" hidden>
+          <legend>Mảnh gửi AI (tối đa 3)</legend>
+          <div id="panel-list"></div>
+        </fieldset>
+        <label class="check"><input type="checkbox" id="use-model" checked> Phóng to bằng Real-ESRGAN</label>
+        <button class="primary" id="run-3d" disabled>Trải phẳng</button>
+        <p class="note" id="note-3d"></p>
+      </div>
+    </div>
+    <div id="results-3d" class="results"></div>
+  </section>
+
+  <!-- History -->
+  <section id="tab-history" class="tab" hidden>
+    <div class="panel">
+      <div class="row"><h2>Lịch sử</h2><button id="refresh">Tải lại</button></div>
+      <table class="jobs"><thead><tr><th>SKU</th><th>Loại</th><th>Trạng thái</th><th>Bản quyền</th><th>Ngày</th><th></th></tr></thead><tbody id="jobs"></tbody></table>
+    </div>
+  </section>
+</main>
+
+<!-- Zoom viewer -->
+<dialog id="viewer">
+  <div class="viewer-bar">
+    <b id="viewer-title"></b>
+    <span class="muted">Cuộn để zoom · kéo để di chuyển · phím 1 = 100% pixel</span>
+    <button data-zoom="fit">Vừa khung</button>
+    <button data-zoom="1">100%</button>
+    <button id="viewer-bg">Nền: ca rô</button>
+    <a id="viewer-download" download>Tải file</a>
+    <button id="viewer-close" aria-label="Đóng">✕</button>
+  </div>
+  <div id="osd" class="checker"></div>
+</dialog>
+
+<script src="/vendor/openseadragon.min.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>
