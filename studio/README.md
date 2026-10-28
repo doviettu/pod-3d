@@ -37,6 +37,20 @@ Mở `http://127.0.0.1:8765` trong trình duyệt. Có thể mở `start.command
 Giữ Terminal và Mac hoạt động trong lúc xử lý. Nhấn Control+C để kết thúc sau khi công việc hiện tại xong.
 Máy chủ chỉ lắng nghe trên máy này, không xuất bản ra Internet.
 
+## Chạy nền, tự khởi động lại và mail link
+
+Không cần mở Terminal mỗi lần: cài một lần, POD Studio tự chạy khi Mac đăng nhập và tự chạy lại sau ~30 giây nếu bị tắt hoặc lỗi.
+
+1. Bấm đúp `studio/setup-mail.command` (tuỳ chọn): nhập Gmail gửi đi, [mật khẩu ứng dụng Google](https://myaccount.google.com/apppasswords) (cần bật xác minh 2 bước) và email nhận. Tool gửi một mail thử. Cài đặt lưu ở `~/.config/pod-studio/mail.json` (quyền 600), không nằm trong repo.
+2. Tắt cửa sổ POD Studio đang chạy bằng tay (Control+C), rồi bấm đúp `studio/install-service.command`. Lệnh này cài 2 dịch vụ launchd: `com.podstudio.server` (ứng dụng) và `com.podstudio.online` (đường truyền HTTPS + đăng nhập; cần `caddy`, `cloudflared`). Chỉ muốn chạy local: `.venv/bin/python studio/service.py install --no-online`.
+3. Mỗi lần đường truyền có link mới (khởi động lại, mất mạng, Mac khởi động), tool gửi mail gồm link, tài khoản `studio` và mật khẩu. Không đổi link thì không gửi lại.
+4. Sau `git pull`: bấm đúp `studio/restart.command`.
+5. Xem trạng thái: `.venv/bin/python studio/service.py status`; log ở `studio/runtime/logs/`. Gỡ: `.venv/bin/python studio/service.py uninstall`.
+
+Để chạy cả khi mất điện: System Settings → Users & Groups → bật tự đăng nhập; Energy → bật "Start up automatically after a power failure" và chặn Mac ngủ. Dịch vụ launchd chỉ chạy khi tài khoản đã đăng nhập.
+
+Mail có mật khẩu đăng nhập: ai đọc được mail đều dùng được toàn bộ tool, kể cả lệnh AI có phí. Chọn "n" ở bước 1 nếu chỉ muốn nhận link.
+
 ## Truy cập online bằng Mac mini
 
 Đã chuẩn bị `start-online.command` / `online.py`: Cloudflare Tunnel cung cấp HTTPS;

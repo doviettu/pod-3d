@@ -13,6 +13,8 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlencode
 
+import mailer
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE / 'runtime' / 'online'
 UPSTREAM = 'http://127.0.0.1:8765'
@@ -98,8 +100,16 @@ def main():
     caddy, tunnel = binary('caddy'), binary('cloudflared')
     if not caddy or not tunnel:
         raise RuntimeError('Cần cài caddy và cloudflared bằng Homebrew trước.')
-    status, body = request(UPSTREAM + '/api/status')
-    if status != 200 or json.loads(body).get('app') != 'pod-studio':
+    # At login both services start together: give the local app a moment to come up.
+    for attempt in range(60):
+        try:
+            status, body = request(UPSTREAM + '/api/status')
+            if status == 200 and json.loads(body).get('app') == 'pod-studio':
+                break
+        except (urllib.error.URLError, ValueError, OSError):
+            pass
+        time.sleep(2)
+    else:
         raise RuntimeError('Hãy mở POD Studio trên Mac trước.')
     ROOT.mkdir(parents=True, exist_ok=True, mode=0o700)
     ROOT.chmod(0o700)
@@ -177,6 +187,9 @@ def main():
         state['status'] = 'ready'
         state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2))
         print(json.dumps(state, ensure_ascii=False), flush=True)
+        # Mail the new link (and login) when it changed; a mail problem never stops the tunnel.
+        mailer.notify_online(state['url'], password, ROOT / 'mail-state.json',
+                             log=lambda m: print(m, flush=True))
         while all(child.poll() is None for child in children):
             time.sleep(2)
         raise RuntimeError('Đường truyền online đã dừng; mở lại để lấy URL mới.')
