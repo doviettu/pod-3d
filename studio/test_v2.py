@@ -105,7 +105,7 @@ class Art2DTests(unittest.TestCase):
                     self.assertEqual(im.mode, 'RGBA')
                     self.assertAlmostEqual(im.info['dpi'][0], 300, places=0)
                     alpha = np.asarray(im)[..., 3]
-                self.assertEqual(alpha[-50:].max(), 0)          # below the art stays transparent
+                self.assertEqual(alpha[:, :50].max(), 0)         # art is trimmed and centred: sides stay clear
                 self.assertGreater((alpha > 200).mean(), 0.2)   # the art itself is opaque
             box = report['sides']['front']['source_box']
             self.assertLess(abs(box[0] - 283), 25)
@@ -127,6 +127,30 @@ class Art2DTests(unittest.TestCase):
         self.assertLess(abs(y - 150), 15)
         self.assertLess(abs(x + w - 500), 15)
         self.assertLess(abs(y + h - 540), 15)
+
+    def test_framed_art_keeps_fabric_coloured_parts_and_fades_out(self):
+        # A painting printed on a black shirt with a black silhouette touching its edge,
+        # like a black cat in a Van Gogh frame.
+        img = np.full((600, 560, 3), 255, np.uint8)
+        cv2.rectangle(img, (60, 0), (500, 599), (22, 20, 20), -1)
+        rng = np.random.default_rng(1)
+        art = np.clip(np.array([200, 120, 40]) + rng.normal(0, 25, (300, 260, 3)), 0, 255).astype(np.uint8)
+        cv2.rectangle(art, (0, 150), (90, 299), (22, 20, 20), -1)          # black silhouette at the corner
+        img[150:450, 150:410] = art
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        g = art2d.detect(rgb)['garments'][0]
+        auto, report = art2d.render_side(rgb, g['art'], g['fabric_lab'], log=lambda m: None)
+        ink, _ = art2d.render_side(rgb, g['art'], g['fabric_lab'], background='ink', log=lambda m: None)
+        self.assertEqual(report['shape'], 'rect')
+        tx, _, tw, th = report['placed']
+        sx = tw / report['art_box'][2]
+        # A point inside the silhouette, away from the frame edge.
+        px, py = tx + int((150 + 60 - report['art_box'][0]) * sx), int((150 + 200 - report['art_box'][1]) * sx)
+        self.assertGreater(auto[py, px, 3], 240)
+        self.assertLess(ink[py, px, 3], 20)
+        # The frame edge fades instead of ending in a hard cut.
+        row = auto[th // 3, tx:tx + tw, 3].astype(int)
+        self.assertTrue(((row > 30) & (row < 220)).sum() >= 3)
 
     def test_side_choice_and_no_art(self):
         regions = [(0, {'art': [0, 0, .1, .1]}), (0, {'art': [.5, 0, .1, .1]})]

@@ -42,12 +42,14 @@
           <label><input type="radio" name="sides" value="back"> Sau</label>
           <label><input type="radio" name="sides" value="both"> Cả 2 mặt</label>
         </fieldset>
-        <fieldset>
-          <legend>Nền</legend>
-          <label><input type="radio" name="background" value="remove" checked> Bỏ màu vải (PNG trong suốt)</label>
-          <label><input type="radio" name="background" value="keep"> Giữ nguyên khối</label>
+        <fieldset class="stack">
+          <legend>Xử lý nền áo</legend>
+          <label><input type="radio" name="background" value="auto" checked> Tự động <span class="muted">— tranh có khung giữ cả phần trùng màu áo, viền mờ dần</span></label>
+          <label><input type="radio" name="background" value="fill"> Giữ phần trùng màu áo <span class="muted">— ví dụ mèo đen trên áo đen</span></label>
+          <label><input type="radio" name="background" value="ink"> Chỉ lấy phần mực khác màu áo</label>
+          <label><input type="radio" name="background" value="keep"> Giữ nguyên khối <span class="muted">— cắt đúng khung, không tách nền</span></label>
         </fieldset>
-        <p class="muted">Kết quả: mỗi mặt 1 file PNG 4500 × 5400 px, 300 DPI. Kéo trên ảnh để vẽ lại khung art nếu tự nhận sai.</p>
+        <p class="muted">Kết quả: mỗi mặt 1 file PNG 4500 × 5400 px, 300 DPI. Art được tách khỏi màu vải theo từng điểm ảnh, viền trong suốt mờ dần để hợp mọi màu áo. Khung chỉ cần bao quanh art.</p>
         <button class="primary" id="run-2d" disabled>Tách art</button>
         <p class="note" id="note-2d"></p>
       </div>

@@ -102,8 +102,9 @@ class StudioV2:
         sides = data.get('sides', 'auto')
         if sides not in art2d.SIDES:
             raise ValueError('Mặt in phải là auto, front, back hoặc both.')
-        background = data.get('background', 'remove')
-        if background not in ('remove', 'keep'):
+        background = data.get('background', 'auto')
+        background = 'auto' if background == 'remove' else background
+        if background not in art2d.BACKGROUNDS:
             raise ValueError('Tuỳ chọn nền không hợp lệ.')
         boxes = data.get('boxes') or None
         if boxes is not None:

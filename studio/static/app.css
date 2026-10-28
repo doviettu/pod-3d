@@ -80,3 +80,5 @@ label.check { display: flex; gap: 6px; align-items: center; }
 .viewer-bar .muted { flex: 1; }
 #osd { width: 100%; height: calc(100vh - 52px); }
 #osd.dark { background: #222; } #osd.white { background: #fff; }
+fieldset.stack label { display: block; margin: 4px 0; }
+fieldset.stack .muted { margin-left: 4px; }
