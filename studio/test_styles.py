@@ -67,6 +67,12 @@ class StyleLibraryTests(unittest.TestCase):
         self.assertEqual(result['suggested_style'], 'sweater')
         self.assertEqual(result['paid_calls'], 0)
 
+    def test_same_shot_with_an_unfinished_template_is_not_selected(self):
+        result = self.lib.detect(garment(), lambda name: ['Hood'] if name == 'sweater' else [])
+        self.assertIsNone(result['selected'])
+        self.assertEqual(result['suggested_style'], 'sweater')
+        self.assertIn('Hood', result['reason'])
+
     def test_similar_garment_suggests_style_but_needs_a_new_template(self):
         result = self.lib.detect(garment(shift=25))
         self.assertIsNone(result['selected'])

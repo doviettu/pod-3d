@@ -113,11 +113,12 @@ class StyleLibrary:
         return reference
 
     # ---- detection ----------------------------------------------------
-    def detect(self, bgr):
+    def detect(self, bgr, missing=None):
         """Rank templates by outline overlap with the mockup.
 
         Returns selected (same shot, safe to cut), suggested_style (similar garment) and the
-        ranked candidates; neither when the photo is unlike every template."""
+        ranked candidates; neither when the photo is unlike every template.
+        missing(name) -> panels a template still lacks; such a template is never auto-selected."""
         m = outline(bgr)
         light_backdrop = float(np.concatenate([m[0], m[-1], m[:, 0], m[:, -1]]).mean()) < 0.3
         ranked = []
@@ -142,7 +143,13 @@ class StyleLibrary:
             return result
         best = ranked[0]
         rival = next((c for c in ranked[1:] if c['style'] != best['style']), None)
-        if best['score'] >= SAME_SHOT and not best['mirrored'] and (not rival or best['score'] - rival['score'] >= 0.03):
+        lacking = missing(best['template']) if missing else []
+        same_shot = best['score'] >= SAME_SHOT and not best['mirrored'] and (not rival or best['score'] - rival['score'] >= 0.03)
+        if same_shot and lacking:
+            result.update(suggested_style=best['style'],
+                          reason=f'Trùng khuôn {best["template"]} ({best["score"]:.0%}) nhưng khuôn này chưa đủ dữ liệu '
+                                 f'(thiếu {", ".join(lacking)}). Hãy tạo khuôn mới cho ảnh này.')
+        elif same_shot:
             result.update(selected=best['template'], suggested_style=best['style'],
                           reason=f'Trùng khuôn {best["template"]} (khớp đường viền {best["score"]:.0%}).')
         elif best['score'] >= NEAR_STYLE and light_backdrop:

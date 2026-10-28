@@ -63,7 +63,12 @@ class StudioV2:
         bgr = cv2.imread(str(path), cv2.IMREAD_COLOR)
         if bgr is None:
             raise ValueError('Không đọc được ảnh mockup.')
-        return self.library.detect(bgr)
+        def missing(name):
+            try:
+                return self.engine.template_info(name)['missing']
+            except (AttributeError, KeyError, OSError, ValueError):
+                return []
+        return self.library.detect(bgr, missing)
 
     def create_template(self, data):
         path = self._cached((data or {}).get('source_id'))
