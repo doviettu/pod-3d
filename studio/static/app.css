@@ -82,3 +82,29 @@ label.check { display: flex; gap: 6px; align-items: center; }
 #osd.dark { background: #222; } #osd.white { background: #fff; }
 fieldset.stack label { display: block; margin: 4px 0; }
 fieldset.stack .muted { margin-left: 4px; }
+
+/* 3D: detection, marking, library */
+.detect { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; font-size: 14px; }
+.detect p { margin: 4px 0 0; }
+.good { color: var(--good); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+#mark-start { width: 100%; margin-bottom: 12px; }
+.stage.marking { cursor: default; }
+.quads { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.quads polygon { fill: color-mix(in srgb, var(--accent) 14%, transparent); stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; stroke-dasharray: 4 3; cursor: move; }
+.quads polygon.active { fill: color-mix(in srgb, #d9480f 18%, transparent); stroke: #d9480f; stroke-dasharray: none; stroke-width: 2; }
+.qhandle { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--card); border: 2px solid #d9480f; cursor: grab; touch-action: none; }
+.qlabel { position: absolute; transform: translate(-50%, -50%); background: var(--accent); color: var(--accent-ink); font-size: 12px; padding: 0 6px; border-radius: 6px; pointer-events: none; }
+.qlabel.active { background: #d9480f; color: #fff; }
+.marktools { padding: 8px 10px 0; }
+.marktools .row { display: flex; gap: 8px; margin-top: 8px; }
+.marktools .grow { flex: 1; min-width: 0; font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+.boxbar .side.off { opacity: .6; border-style: dashed; }
+button.accent { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 650; }
+.style { border-top: 1px solid var(--line); padding: 12px 0; }
+.style h3 { font-size: 15px; margin: 0 0 4px; }
+.tpls { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-top: 8px; }
+.tpl { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--bg); }
+.tpl img, .tpl .noimg { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; background: #fff; }
+.tpl .noimg { display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+.tpl figcaption { padding: 6px 8px; font-size: 13px; }
+.tpl figcaption b { display: block; }

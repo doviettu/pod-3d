@@ -15,6 +15,7 @@ import numpy as np
 
 import art2d
 import sources
+import styles
 from jobstore import JobStore
 
 JOB_ID = re.compile(r'[a-f0-9]{32}')
@@ -34,6 +35,43 @@ class StudioV2:
         self.cache.mkdir(parents=True, exist_ok=True)
         self.store = JobStore(self.runtime / 'studio.db')
         self.lock = threading.Lock()
+
+    # ---- style library (3D) --------------------------------------------
+    @property
+    def library(self):
+        if not hasattr(self, '_library'):
+            self._library = styles.StyleLibrary(self.engine.templates, Path(__file__).resolve().parent / 'templates')
+        return self._library
+
+    def styles(self):
+        return self.library.catalog(self.engine.template_info)
+
+    def detect_style(self, data):
+        import cv2
+        path = self._cached((data or {}).get('source_id'))
+        bgr = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        if bgr is None:
+            raise ValueError('Không đọc được ảnh mockup.')
+        return self.library.detect(bgr)
+
+    def create_template(self, data):
+        path = self._cached((data or {}).get('source_id'))
+
+        def build_maps(name, reference):
+            from pod3d import geometry  # the engine is on sys.path once Engine has loaded it
+            geometry.run(self.engine.templates.load(name), reference, log=lambda m: None)
+
+        with self.lock:
+            created = self.library.create(path, data, build_maps)
+        return {**created, 'template': self.engine.template_info(created['name'])}
+
+    def template_preview(self, name):
+        if name not in self.engine.templates.available():
+            raise FileNotFoundError()
+        path = self.library.preview_path(name)
+        if path is None:
+            raise FileNotFoundError()
+        return path
 
     # ---- sources -------------------------------------------------------
     def _cached(self, sha):

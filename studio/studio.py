@@ -647,6 +647,10 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, v2.list(kind if kind in ("2d", "3d") else None))
         elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}", path):
             self.send_json(200, v2.get(path.rsplit("/", 1)[1]))
+        elif path == "/api/v2/styles":
+            self.send_json(200, v2.styles())
+        elif re.fullmatch(r"/api/v2/templates/[a-z][a-z0-9_-]{0,63}/preview", path):
+            self.send_file(v2.template_preview(path.split("/")[4]))
         elif re.fullmatch(r"/api/v2/sources/[a-f0-9]{64}", path):
             target = v2.source_file(path.rsplit("/", 1)[1])
             self.send_file(target)
@@ -698,6 +702,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, self.server.v2.inspect(data))
             elif self.path == "/api/v2/jobs":
                 self.send_json(202, self.server.v2.submit(data))
+            elif self.path == "/api/v2/detect-style":
+                self.send_json(200, self.server.v2.detect_style(data))
+            elif self.path == "/api/v2/templates":
+                self.send_json(201, self.server.v2.create_template(data))
             elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/rights", self.path):
                 self.send_json(200, self.server.v2.set_rights(self.path.split("/")[4], data))
             elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/approve", self.path):

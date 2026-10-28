@@ -12,6 +12,7 @@
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="2d" aria-selected="true">2D · In 1–2 mặt</button>
     <button role="tab" data-tab="3d" aria-selected="false">3D · In tràn</button>
+    <button role="tab" data-tab="library" aria-selected="false">Thư viện kiểu dáng</button>
     <button role="tab" data-tab="history" aria-selected="false">Lịch sử</button>
   </nav>
   <a class="legacy" href="/legacy">Công cụ duyệt chi tiết</a>
@@ -73,10 +74,14 @@
       </div>
       <div class="panel">
         <h2>2. Kiểu dáng và chế độ</h2>
+        <div class="detect" id="detect-3d"><span class="muted">Nạp ảnh để tự nhận kiểu dáng.</span></div>
         <label class="block">Kiểu dáng
+          <select id="style"></select>
+        </label>
+        <label class="block">Khuôn (ảnh mockup đã hiệu chỉnh)
           <select id="template"></select>
         </label>
-        <p class="muted" id="detect-3d"></p>
+        <button type="button" id="mark-start" disabled>+ Tạo khuôn mới từ ảnh này</button>
         <fieldset>
           <legend>Chế độ</legend>
           <label><input type="radio" name="mode3d" value="local" checked> Local (miễn phí)</label>
@@ -92,6 +97,15 @@
       </div>
     </div>
     <div id="results-3d" class="results"></div>
+  </section>
+
+  <!-- Library -->
+  <section id="tab-library" class="tab" hidden>
+    <div class="panel">
+      <h2>Thư viện kiểu dáng</h2>
+      <p class="muted">Mỗi kiểu dáng có bộ mảnh in riêng. Mỗi khuôn là một ảnh mockup đã hiệu chỉnh của kiểu đó: ảnh mới trùng khuôn thì cắt tự động, ảnh khác thì tạo khuôn mới ở tab 3D.</p>
+      <div id="library"></div>
+    </div>
   </section>
 
   <!-- History -->

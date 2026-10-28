@@ -5,12 +5,13 @@
 Mở `http://127.0.0.1:8765` sau khi chạy `studio/start.command`.
 
 - **2D · In 1–2 mặt**: kéo thả, dán (⌘V) hoặc dán link ảnh áo. Link Etsy/Shopify/Amazon/Pinterest tự đổi về bản ảnh lớn nhất. Tool tự tìm áo và vùng art, hiện khung Trước/Sau; kéo trên ảnh để vẽ lại khung. Kết quả mỗi mặt là PNG 4500 × 5400 px, 300 DPI, nền trong suốt (`runtime/v2-jobs/<mã>/front.png`, `back.png`).
-- **3D · In tràn**: nạp mockup, tool gợi ý kiểu dáng, chọn Local hoặc AI (OpenAI, có phí), chạy bằng engine `pod3d`. Duyệt chữ/logo và xuất PSD vẫn ở **Công cụ duyệt chi tiết** (`/legacy`).
+- **3D · In tràn**: nạp mockup, tool so đường viền áo với các khuôn trong thư viện. Trùng khuôn thì chọn luôn. Ảnh khác thì chọn kiểu dáng và bấm **Tạo khuôn mới từ ảnh này**: kéo 4 góc từng mảnh trên ảnh, lưu xong là trải phẳng được (khuôn mới nằm ở `studio/templates/<kiểu>-<ngày>-<số>/`, mảnh không đánh dấu tô một màu). Chọn Local hoặc AI (OpenAI, có phí), chạy bằng engine `pod3d`. Duyệt chữ/logo và xuất PSD vẫn ở **Công cụ duyệt chi tiết** (`/legacy`).
+- **Thư viện kiểu dáng**: các kiểu (sweater, hoodie chui đầu, hoodie khoá kéo, áo thun in tràn), bộ mảnh và cỡ mảnh của từng kiểu, các khuôn kèm ảnh.
 - **Lịch sử**: mọi job có mã SKU (`2D-261028-001`), trạng thái, mức bản quyền. Danh sách lưu trong `runtime/studio.db`.
 - Nút **Mở rộng** mở trình xem zoom tới từng pixel (phím `1` = 100%, `0` = vừa khung), đổi nền ca rô/trắng/tối để soi vùng trong suốt.
 - Cùng ảnh, cùng tuỳ chọn thì không chạy lại mà hiện kết quả cũ.
 
-Mã nguồn: `app.html`, `static/app.js`, `v2.py` (dịch vụ), `art2d.py` (pipeline 2D), `sources.py` (tải ảnh/link), `jobstore.py` (SQLite). Test: `.venv/bin/python studio/test_v2.py`.
+Mã nguồn: `app.html`, `static/app.js`, `v2.py` (dịch vụ), `art2d.py` (pipeline 2D), `styles.py` (thư viện kiểu dáng, nhận dáng, tạo khuôn), `sources.py` (tải ảnh/link), `jobstore.py` (SQLite). Test: `.venv/bin/python studio/test_v2.py` và `studio/test_styles.py`.
 
 ## Công cụ cũ (Codex)
 

@@ -61,7 +61,7 @@ $$('.tabs button').forEach(button => button.addEventListener('click', () => {
 async function addSources(kind, entries) {
   const s = state[kind];
   const limit = kind === '2d' ? 2 : 1;
-  if (kind === '3d') s.sources = [];
+  if (kind === '3d') { s.sources = []; s.marking = null; }
   const room = limit - s.sources.length;
   if (room <= 0) { note(kind, 'Đã đủ số ảnh. Bấm "Bỏ" để thay ảnh.', true); return; }
   note(kind, 'Đang tải và nhận diện ảnh…');
@@ -145,6 +145,7 @@ function renderSources(kind) {
     const stage = el('div', { class: 'stage', tabindex: kind === '2d' ? '0' : null }, img);
     const remove = el('button', { type: 'button', onclick: () => {
       s.sources.splice(index, 1);
+      s.marking = null;
       if (kind === '2d') { s.manual = false; autoBoxes(); }
       renderSources(kind);
     } }, 'Bỏ ảnh');
@@ -152,6 +153,10 @@ function renderSources(kind) {
       el('span', {}, `${src.width} × ${src.height} px`, src.url ? el('span', { class: 'muted' }, ' · từ link') : null),
       remove);
     const parts = [stage];
+    if (kind === '3d' && s.marking) {
+      markingOverlay(stage);
+      parts.push(markingTools());
+    }
     if (kind === '2d') {
       parts.push(boxToolbar(index), boxInfo(src, index));
       for (const [side, spec] of Object.entries(s.boxes)) {
@@ -169,7 +174,8 @@ function renderSources(kind) {
     $('#run-2d').disabled = !s.sources.length || !total;
     if (s.sources.length && !total) note('2d', 'Chưa tự tìm được vùng art. Bấm "+ Trước" hoặc kéo trên ảnh để chọn vùng.', true);
   } else {
-    $('#run-3d').disabled = !s.sources.length;
+    $('#run-3d').disabled = !s.sources.length || !$('#template').value;
+    $('#mark-start').disabled = !s.sources.length;
   }
 }
 
@@ -344,18 +350,34 @@ $('#run-2d').addEventListener('click', async () => {
   }
 });
 
-// ---------- 3D ----------
+// ---------- 3D: styles, templates, detection ----------
 async function loadTemplates() {
   try {
-    const status = await api('/api/status');
+    const [status, library] = await Promise.all([api('/api/status'), api('/api/v2/styles')]);
     state.templates = status.templates || [];
-    const select = $('#template');
-    select.replaceChildren(...state.templates.map(t => el('option', { value: t.name, disabled: !t.ready },
-      `${t.label}${t.ready ? '' : ' (thiếu dữ liệu)'}${t.production_ready === false ? ' · nháp' : ''}`)));
-    renderPanels();
+    state.styles = library.styles;
+    state.defaultQuads = library.default_quads;
+    state.unsorted = library.unsorted;
+    $('#style').replaceChildren(...state.styles.map(st => el('option', { value: st.id },
+      `${st.label} · ${st.panels.length} mảnh · ${st.templates.length} khuôn`)));
+    fillTemplates();
+    renderLibrary();
   } catch (error) {
-    note('3d', 'Không tải được danh sách kiểu dáng: ' + error.message, true);
+    note('3d', 'Không tải được thư viện kiểu dáng: ' + error.message, true);
   }
+}
+
+function currentStyle() { return (state.styles || []).find(st => st.id === $('#style').value); }
+
+function fillTemplates(selected) {
+  const st = currentStyle();
+  const list = st ? st.templates : [];
+  $('#template').replaceChildren(...(list.length ? list.map(t => el('option', { value: t.name, disabled: !t.ready },
+    `${t.label}${t.ready ? '' : ' (thiếu dữ liệu)'}${t.production_ready === false ? ' · nháp' : ''}`))
+    : [el('option', { value: '' }, 'Chưa có khuôn: hãy tạo khuôn mới từ ảnh')]));
+  if (selected) $('#template').value = selected;
+  renderPanels();
+  $('#run-3d').disabled = !state['3d'].sources.length || !$('#template').value;
 }
 
 function renderPanels() {
@@ -365,7 +387,8 @@ function renderPanels() {
     el('label', {}, el('input', { type: 'checkbox', value: p.name, checked: p.name === 'Front' }), ` ${p.name}`)));
 }
 
-$('#template').addEventListener('change', renderPanels);
+$('#style').addEventListener('change', () => { fillTemplates(); if (state['3d'].marking) startMarking(); });
+$('#template').addEventListener('change', () => { renderPanels(); $('#run-3d').disabled = !state['3d'].sources.length || !$('#template').value; });
 $$('input[name=mode3d]').forEach(r => r.addEventListener('change', () => {
   $('#panels-ai').hidden = $('input[name=mode3d]:checked').value !== 'ai';
 }));
@@ -373,21 +396,153 @@ $$('input[name=mode3d]').forEach(r => r.addEventListener('change', () => {
 async function detectTemplate() {
   const src = state['3d'].sources[0];
   if (!src) return;
-  $('#detect-3d').textContent = 'Đang nhận diện kiểu dáng…';
+  const box = $('#detect-3d');
+  box.replaceChildren(el('span', { class: 'muted' }, 'Đang nhận diện kiểu dáng…'));
+  $('#mark-start').disabled = false;
   try {
-    const blob = await (await fetch(`/api/v2/sources/${src.source_id}`)).blob();
-    const result = await api('/api/detect-template', { image_base64: await fileToBase64(blob) });
-    const pick = result.selected || result.suggested;
-    if (pick) {
-      $('#template').value = pick;
-      renderPanels();
-      $('#detect-3d').textContent = result.selected ? 'Đã nhận đúng kiểu dáng.' : 'Gợi ý kiểu dáng gần nhất, hãy kiểm tra lại.';
-    } else {
-      $('#detect-3d').textContent = 'Chưa nhận ra kiểu dáng: hãy chọn tay (hoặc chấm điểm mốc bằng `pod3d mark`).';
-    }
+    const r = await api('/api/v2/detect-style', { source_id: src.source_id });
+    const styleId = r.suggested_style;
+    if (styleId) { $('#style').value = styleId; fillTemplates(r.selected || undefined); }
+    const kind = r.selected ? 'good' : styleId ? 'warn' : 'bad';
+    box.replaceChildren(
+      el('b', { class: kind }, r.selected ? 'Đã nhận ra khuôn' : styleId ? 'Gần giống, cần khuôn mới' : 'Chưa nhận ra'),
+      el('p', {}, r.reason || ''),
+      r.candidates.length ? el('p', { class: 'muted' }, 'Gần nhất: ' + r.candidates.slice(0, 3)
+        .map(c => `${c.template} ${Math.round(c.score * 100)}%`).join(' · ')) : null);
+    if (!r.selected && !$('#template').value) note('3d', 'Chọn kiểu dáng rồi bấm "Tạo khuôn mới từ ảnh này".');
   } catch (error) {
-    $('#detect-3d').textContent = 'Không nhận diện được: ' + error.message;
+    box.replaceChildren(el('span', { class: 'bad' }, 'Không nhận diện được: ' + error.message));
   }
+}
+
+// ---------- 3D: marking a new template ----------
+// Each panel is a quad (4 corners) on the mockup; the engine builds unwrap maps from it.
+function startMarking() {
+  const st = currentStyle();
+  if (!st || !state['3d'].sources.length) return;
+  const quads = {};
+  for (const p of st.panels) if (p.kind === 'main' && state.defaultQuads[p.name]) quads[p.name] = state.defaultQuads[p.name].map(q => [...q]);
+  state['3d'].marking = { style: st.id, quads, active: Object.keys(quads)[0] };
+  note('3d', '');
+  renderSources('3d');
+}
+$('#mark-start').addEventListener('click', startMarking);
+
+function markingTools() {
+  const m = state['3d'].marking;
+  const st = state.styles.find(x => x.id === m.style);
+  const label = el('input', { type: 'text', placeholder: 'Tên khuôn (không bắt buộc)', maxlength: '80', class: 'grow' });
+  return el('div', { class: 'marktools' },
+    el('p', { class: 'muted' }, `Kéo 4 góc của từng mảnh khớp với mảnh trên ảnh (${st.label}). Kéo bên trong để di chuyển cả mảnh. Mảnh không đánh dấu sẽ tô một màu lấy từ thân áo.`),
+    el('div', { class: 'boxbar' }, st.panels.map(p => {
+      const on = !!m.quads[p.name];
+      return el('button', { type: 'button', class: `side${m.active === p.name ? ' active' : ''}${on ? '' : ' off'}`,
+        title: on ? 'Chọn để chỉnh; bấm lại để bỏ' : 'Thêm mảnh này',
+        onclick: () => {
+          if (!on) { m.quads[p.name] = (state.defaultQuads[p.name] || [[0.4, 0.4], [0.6, 0.4], [0.6, 0.6], [0.4, 0.6]]).map(q => [...q]); m.active = p.name; }
+          else if (m.active === p.name) { delete m.quads[p.name]; m.active = Object.keys(m.quads)[0]; }
+          else m.active = p.name;
+          renderSources('3d');
+        } }, `${on ? '' : '+ '}${p.name}`);
+    })),
+    el('div', { class: 'row' }, label,
+      el('button', { type: 'button', onclick: () => { state['3d'].marking = null; renderSources('3d'); } }, 'Huỷ'),
+      el('button', { type: 'button', class: 'accent', onclick: async event => {
+        const names = Object.keys(m.quads);
+        if (!names.length) { note('3d', 'Hãy đánh dấu ít nhất một mảnh.', true); return; }
+        event.target.disabled = true;
+        note('3d', 'Đang tạo khuôn và dựng bản đồ trải phẳng…');
+        try {
+          const r = await api('/api/v2/templates', { source_id: state['3d'].sources[0].source_id, style: m.style,
+            label: label.value, panels: names.map(name => ({ name, quad: m.quads[name] })) });
+          state['3d'].marking = null;
+          await loadTemplates();
+          $('#style').value = r.style;
+          fillTemplates(r.name);
+          renderSources('3d');
+          note('3d', `Đã tạo khuôn ${r.label}. ${r.solid.length ? 'Tô một màu: ' + r.solid.join(', ') + '.' : ''}`);
+          detectTemplate();
+        } catch (error) {
+          note('3d', error.message, true);
+          event.target.disabled = false;
+        }
+      } }, 'Lưu khuôn')));
+}
+
+function markingOverlay(stage) {
+  const m = state['3d'].marking;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 1 1');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.classList.add('quads');
+  for (const [name, quad] of Object.entries(m.quads)) {
+    const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+    poly.setAttribute('points', quad.map(p => p.join(',')).join(' '));
+    poly.dataset.panel = name;
+    if (name === m.active) poly.classList.add('active');
+    svg.append(poly);
+    const cx = quad.reduce((a, p) => a + p[0], 0) / 4, cy = quad.reduce((a, p) => a + p[1], 0) / 4;
+    stage.append(el('span', { class: `qlabel${name === m.active ? ' active' : ''}`, style: `left:${cx * 100}%;top:${cy * 100}%` }, name));
+    if (name === m.active) quad.forEach((p, i) => stage.append(el('i', { class: 'qhandle', 'data-panel': name, 'data-corner': String(i),
+      style: `left:${p[0] * 100}%;top:${p[1] * 100}%` })));
+  }
+  stage.querySelector('img').after(svg);
+  stage.classList.add('marking');
+  let drag = null;
+  const point = event => {
+    const r = stage.getBoundingClientRect();
+    return [Math.min(1, Math.max(0, (event.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (event.clientY - r.top) / r.height))];
+  };
+  stage.addEventListener('dragstart', event => event.preventDefault());
+  stage.addEventListener('pointerdown', event => {
+    const t = event.target;
+    const name = t.dataset.panel;
+    if (!name) return;
+    event.preventDefault();
+    m.active = name;
+    drag = { name, corner: t.dataset.corner !== undefined ? Number(t.dataset.corner) : null, start: point(event),
+             quad: m.quads[name].map(p => [...p]), node: t };
+    stage.setPointerCapture(event.pointerId);
+  });
+  stage.addEventListener('pointermove', event => {
+    if (!drag) return;
+    const [x, y] = point(event);
+    const q = m.quads[drag.name];
+    if (drag.corner !== null) { q[drag.corner] = [x, y]; }
+    else {
+      const dx = x - drag.start[0], dy = y - drag.start[1];
+      const xs = drag.quad.map(p => p[0]), ys = drag.quad.map(p => p[1]);
+      const ddx = Math.min(1 - Math.max(...xs), Math.max(-Math.min(...xs), dx));
+      const ddy = Math.min(1 - Math.max(...ys), Math.max(-Math.min(...ys), dy));
+      drag.quad.forEach((p, i) => { q[i] = [p[0] + ddx, p[1] + ddy]; });
+    }
+    const poly = svg.querySelector(`polygon[data-panel="${drag.name}"]`);
+    poly.setAttribute('points', q.map(p => p.join(',')).join(' '));
+    $$(`.qhandle[data-panel="${drag.name}"]`, stage).forEach((h, i) => Object.assign(h.style, { left: `${q[i][0] * 100}%`, top: `${q[i][1] * 100}%` }));
+  });
+  const finish = () => {
+    if (!drag) return;
+    drag = null;
+    for (const q of Object.values(m.quads)) q.forEach(p => { p[0] = Math.round(p[0] * 10000) / 10000; p[1] = Math.round(p[1] * 10000) / 10000; });
+    renderSources('3d');
+  };
+  stage.addEventListener('pointerup', finish);
+  stage.addEventListener('pointercancel', finish);
+}
+
+// ---------- library tab ----------
+function renderLibrary() {
+  const host = $('#library');
+  if (!host || !state.styles) return;
+  const card = t => el('figure', { class: 'tpl' },
+    t.preview_url ? el('img', { src: t.preview_url, alt: t.label, loading: 'lazy' }) : el('div', { class: 'noimg' }, 'Chưa có ảnh'),
+    el('figcaption', {}, el('b', {}, t.label), el('span', { class: 'muted' },
+      ` ${t.name}${t.ready ? '' : ' · thiếu dữ liệu'}${t.production_ready === false ? ' · nháp' : ''}`)));
+  host.replaceChildren(...state.styles.map(st => el('section', { class: 'style' },
+    el('h3', {}, st.label, el('span', { class: 'muted' }, st.sample_files ? ' · cỡ mảnh theo file mẫu xưởng' : ' · cỡ mảnh chuẩn 4500 × 5400')),
+    el('p', { class: 'muted' }, st.panels.map(p => `${p.name} ${p.size[0]}×${p.size[1]}${p.kind === 'trim' ? ' (viền)' : ''}`).join(' · ')),
+    st.templates.length ? el('div', { class: 'tpls' }, st.templates.map(card)) : el('p', { class: 'muted' }, 'Chưa có khuôn nào.'))),
+    ...(state.unsorted.length ? [el('section', { class: 'style' }, el('h3', {}, 'Chưa xếp kiểu'), el('div', { class: 'tpls' }, state.unsorted.map(card)))] : []));
 }
 
 $('#run-3d').addEventListener('click', async () => {
