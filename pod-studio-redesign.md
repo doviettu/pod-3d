@@ -6,7 +6,7 @@ Ngày: 28/10/2026 · Chạy trên Mac mini 16 GB · Dùng cá nhân
 
 Một trang web chạy trên Mac: dán ảnh hoặc link ảnh áo tìm được, nhận lại file in sẵn sản xuất, tự lưu lên Google Drive và ghi vào Sheet quản lý.
 
-- **2D**: art in một mặt (trước hoặc sau). Tự tìm vùng art, tách ra PNG nền trong suốt 4500 × 5400 px, 300 DPI.
+- **2D**: art in mặt trước, mặt sau, hoặc cả hai. Tự tìm vùng art, mỗi mặt tách ra một PNG nền trong suốt 4500 × 5400 px, 300 DPI.
 - **3D**: áo in tràn, ghép may từ 6 mảnh. Hai chế độ: **AI** (gọi API, tự động) và **Local** (thư viện kiểu dáng, tự nhận dáng áo rồi trải phẳng).
 
 ## Hiện trạng (đã kiểm tra)
@@ -35,7 +35,10 @@ Trình duyệt ── FastAPI (127.0.0.1) ── Hàng đợi 1 worker (SQLite)
 ## Luồng 2D
 
 1. **Nạp**: tải file, dán ảnh (Ctrl+V), hoặc dán link. Link được tải về máy, kiểm tra loại file, cỡ tối đa 32 MB.
-2. **Tìm vùng art**: tách áo khỏi nền (BiRefNet qua `rembg`, MIT), rồi trong áo tìm vùng khác màu vải. Hiện khung đề xuất, người dùng kéo chỉnh được. Ảnh có 2 mặt cạnh nhau thì hỏi chọn mặt.
+2. **Tìm vùng art**: tách áo khỏi nền (BiRefNet qua `rembg`, MIT), rồi trong áo tìm vùng khác màu vải. Hiện khung đề xuất, người dùng kéo chỉnh được.
+   - Chọn **Trước / Sau / Cả 2 mặt** (mặc định: tự đoán). Ảnh có 2 áo cạnh nhau (trước + sau) thì tự nhận 2 khung và gắn nhãn mặt; người dùng đổi nhãn nếu sai.
+   - Mặt trước và sau nằm ở 2 ảnh riêng thì nạp cả 2 vào cùng một job.
+   - Các bước dưới chạy riêng cho từng mặt, chung một SKU.
 3. **Làm phẳng**: nắn phối cảnh theo 4 góc khung, bỏ bóng và vân vải (đã có `clean.py`).
 4. **Bỏ nền**: tách màu vải thành trong suốt; viền mềm, giữ chi tiết mảnh.
 5. **Phóng to**: Real-ESRGAN (đã cài), rồi đặt vào canvas 4500 × 5400, căn giữa trên, chừa lề an toàn.
@@ -98,14 +101,14 @@ Prompt không viết tay mỗi lần mà **ghép từ khuôn**, để giống h�
 
 ```
 POD Studio/
-├─ 2D/2026-10/<SKU>/  source.jpg · art.png · art.svg · preview.jpg
+├─ 2D/2026-10/<SKU>/  source.jpg · front.png · back.png · *.svg · preview.jpg
 ├─ 3D/2026-10/<SKU>/  source.jpg · panels/*.png · panels.zip · preview.jpg
 ├─ Thư viện kiểu dáng/
 └─ POD Quản lý (Sheet)
 ```
 
 Sheet tự tạo các tab:
-- **Jobs**: SKU, ngày, loại 2D/3D, chế độ, link nguồn, kiểu dáng, trạng thái, ảnh nhỏ `=IMAGE()`, link thư mục, chi phí AI, ghi chú, quyền sử dụng.
+- **Jobs**: SKU, ngày, loại 2D/3D, mặt in (trước/sau/cả 2), chế độ, link nguồn, kiểu dáng, trạng thái, ảnh nhỏ `=IMAGE()`, link thư mục, chi phí AI, ghi chú, quyền sử dụng.
 - **Kiểu dáng**: danh sách thư viện và kích thước mảnh.
 - **Prompt**: phiên bản prompt, số lần dùng, điểm chất lượng trung bình, chi phí trung bình.
 - **Cài đặt**: quy tắc đặt SKU, lề an toàn, trần ngân sách AI.
@@ -117,7 +120,7 @@ SQLite vẫn là gốc; Sheet là bản sao để xem và lọc. Đồng bộ ch
 - [ ] 1. Đưa `pod-studio` vào repo (`studio/`), loại `runtime/`, `.vendor/`, `node_modules/`, khóa API → Verify: `git status` sạch, test cũ của Codex vẫn chạy.
 - [ ] 2. Dựng vỏ FastAPI + SQLite jobs + worker, chuyển dần route của `studio.py` → Verify: `curl 127.0.0.1:8765/api/status` trả 200, job cũ hiện trong lịch sử.
 - [ ] 3. Trang chính 2 tab 2D / 3D, ô nạp ảnh/link/dán → Verify: dán link ảnh, thấy ảnh xem trước.
-- [ ] 4. Pipeline 2D (tìm vùng, phẳng, bỏ nền, phóng to, canvas 4500 × 5400) → Verify: 5 ảnh mẫu ra PNG đúng cỡ, có alpha, 300 DPI.
+- [ ] 4. Pipeline 2D (tìm vùng, phẳng, bỏ nền, phóng to, canvas 4500 × 5400) → Verify: 5 ảnh mẫu ra PNG đúng cỡ, có alpha, 300 DPI; 1 ảnh trước + sau cạnh nhau ra đủ `front.png` và `back.png`.
 - [ ] 5. Trình xem OpenSeadragon + so sánh trước/sau → Verify: zoom tới pixel trên mảnh 6048 × 6559 mượt.
 - [ ] 6. Thư viện kiểu dáng + nhận dáng tự động → Verify: ảnh sweater/hoodie mẫu được nhận đúng kiểu, ảnh lạ hỏi chọn tay.
 - [ ] 7. Nối 3D Local và 3D AI vào luồng mới (khuôn prompt, cache, sheet 1 lệnh, trần ngân sách) → Verify: mockup Home Alone ra đủ 6 mảnh theo cả 2 chế độ; chạy AI lần 2 cùng ảnh không phát sinh lệnh mới.
@@ -131,7 +134,7 @@ Thứ tự: 1 → 2 → (3, 5 song song) → 4 → 6 → 7 → 8 → 9. Mỗi b�
 1. **6 thành phần của 3D là những mảnh nào?** Sweater mẫu có Front, Back, Sleeve, Collar, Hem, Wrist. Hoodie mẫu chỉ có 5 (Front, Back, Hood, Left, Right). Mỗi kiểu dáng có bộ 6 mảnh riêng, hay một bộ chung?
 2. **Kích thước xưởng** cho hoodie, áo thun AOP (Codex đang để "chưa xác nhận").
 3. **API AI**: giữ OpenAI gpt-image như Codex đã nối, hay thêm Gemini? Ngân sách mỗi tháng?
-4. **2D: vùng in 4500 × 5400 cố định** cho cả mặt trước lẫn sau, hay có cỡ khác (in ngực trái, in lưng to)?
+4. **2D: vùng in 4500 × 5400 cố định** cho cả mặt trước lẫn sau, hay mỗi mặt một cỡ (ví dụ trước in ngực trái nhỏ, sau in lưng to)?
 
 ## Gợi ý thêm để dự án tốt hơn
 
