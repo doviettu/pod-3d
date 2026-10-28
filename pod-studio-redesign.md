@@ -154,10 +154,10 @@ Chạy tự động cho mọi job, ngay sau bước tìm vùng art, trước khi
 - [x] 6. Thư viện kiểu dáng + nhận dáng tự động → Verify: ảnh sweater/hoodie mẫu được nhận đúng kiểu, ảnh lạ hỏi chọn tay. (Có thêm: tạo khuôn mới trên trang bằng 4 góc mỗi mảnh, tab Thư viện.)
 - [x] 7. Nối 3D Local và 3D AI vào luồng mới (khuôn prompt, cache, sheet 1 lệnh, trần ngân sách) → Verify: mockup Home Alone ra đủ 6 mảnh theo cả 2 chế độ; chạy AI lần 2 cùng ảnh không phát sinh lệnh mới. (Đã làm: sheet 1 lệnh, cache theo hash, tự chọn mảnh Local yếu, trần ngày/tháng + sổ chi tiêu, prompt ghép khuôn có phiên bản. Chưa làm: lệnh mô tả thiết kế bằng model đọc ảnh, chạy thử `low` trước, Batch API.)
 - [ ] 8. Google Drive + Sheet (OAuth, tạo cây thư mục, ghi dòng) → Verify: duyệt 1 job thì thấy thư mục và dòng mới trong Sheet.
-- [ ] 8b. Kiểm tra bản quyền (pHash, OCR + từ khoá, gộp vào lệnh AI mô tả, nhãn Xanh/Vàng/Đỏ, thư mục và cột Sheet) → Verify: mockup Home Alone bị gắn Đỏ (Disney/Fox); một art chữ tự viết ra Xanh; đổi một job sang Đỏ thì ảnh trùng lần sau tự Đỏ.
+- [x] 8b. Kiểm tra bản quyền (pHash, OCR + từ khoá, gộp vào lệnh AI mô tả, nhãn Xanh/Vàng/Đỏ, thư mục và cột Sheet) → Verify: mockup Home Alone bị gắn Đỏ (Disney/Fox); một art chữ tự viết ra Xanh; đổi một job sang Đỏ thì ảnh trùng lần sau tự Đỏ. (Đã làm: pHash + danh sách đen, từ khoá thương hiệu trong link/tên file và chữ trên art (OCR Tesseract, tuỳ chọn), nhãn Xanh/Vàng/Đỏ trên thẻ job, nút Google Lens/TinEye/USPTO, sửa từ khoá trong tab Lịch sử. Mockup Home Alone chỉ tự Vàng/Đỏ khi link/tên/chữ có từ khoá. Chưa làm: lớp AI nhận logo/nhân vật (đợi lệnh mô tả thiết kế), thư mục và cột Sheet (bước 8).)
 - [ ] 9. Kiểm tra tổng: chạy 3 job 2D + 2 job 3D từ đầu tới Drive → Verify: Sheet có 5 dòng, mọi link mở được.
 
-Thứ tự: 1 → 2 → (3, 5 song song) → 4 → 4b → 6 → 7 → 8 → 8b → 9. Mỗi bước là một PR nhỏ.
+Thứ tự: 1 → 2 → (3, 5 song song) → 4 → 4b → 6 → 7 → 8b → 8 → 9 (8b làm trước vì 8 cần bạn bật quyền Google). Mỗi bước là một PR nhỏ.
 
 ## Đã chốt (28/10)
 

@@ -714,6 +714,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, v2.get(path.rsplit("/", 1)[1]))
         elif path == "/api/v2/ai-budget":
             self.send_json(200, v2.ai_budget())
+        elif path == "/api/v2/rights-config":
+            self.send_json(200, v2.rights_config())
         elif path == "/api/v2/styles":
             self.send_json(200, v2.styles())
         elif re.fullmatch(r"/api/v2/templates/[a-z][a-z0-9_-]{0,63}/preview", path):
@@ -756,7 +758,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(415, {"error": "Yêu cầu phải có định dạng JSON."})
             return
         length = self.headers.get("Content-Length", "")
-        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review', self.path) else 128 * 1024 if self.path == '/api/design-plan' else 16 * 1024
+        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review', self.path) else 128 * 1024 if self.path in ('/api/design-plan', '/api/v2/rights-config') else 16 * 1024
         if not length.isdigit() or len(length) > 9 or not 0 < int(length) <= limit:
             self.send_json(413, {"error": "Dữ liệu quá lớn hoặc thiếu độ dài."})
             return
@@ -773,6 +775,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, self.server.v2.ai_estimate(data))
             elif self.path == "/api/v2/ai-budget":
                 self.send_json(200, self.server.v2.ai_budget(data))
+            elif self.path == "/api/v2/rights-config":
+                self.send_json(200, self.server.v2.rights_config(data))
             elif self.path == "/api/v2/detect-style":
                 self.send_json(200, self.server.v2.detect_style(data))
             elif self.path == "/api/v2/templates":

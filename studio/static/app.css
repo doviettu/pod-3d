@@ -111,3 +111,8 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 .cost { font-size: 13px; margin: 6px 0 0; }
 .linkish { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; font-size: 13px; cursor: pointer; }
 #panel-list label { margin-right: 10px; }
+.rights { font-size: 13px; margin: 6px 0; padding: 6px 8px; border-radius: 8px; border-left: 3px solid var(--line); background: var(--bg); }
+.rights.green { border-left-color: var(--good); } .rights.yellow { border-left-color: var(--warn); } .rights.red { border-left-color: var(--bad); }
+.rights a { margin-left: 8px; color: var(--accent); }
+.rights-panel { margin-top: 16px; } .rights-panel summary { cursor: pointer; }
+#rights-keywords { width: 100%; margin-top: 4px; font: 13px/1.4 ui-monospace, monospace; }

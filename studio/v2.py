@@ -14,6 +14,7 @@ import threading
 import numpy as np
 
 import art2d
+import rights
 import sources
 import styles
 from jobstore import JobStore
@@ -34,6 +35,7 @@ class StudioV2:
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
         self.cache.mkdir(parents=True, exist_ok=True)
         self.store = JobStore(self.runtime / 'studio.db')
+        self.rights = rights.RightsChecker(self.runtime)
         self.lock = threading.Lock()
 
     # ---- style library (3D) --------------------------------------------
@@ -117,9 +119,11 @@ class StudioV2:
             return dict(source_id=entry['source_id'], width=width, height=height, url=meta.get('url'), path=path)
         info = sources.load(entry, **({'download': download} if download else {}))
         path = self.cache / (info['sha256'] + info['suffix'])
+        name = entry.get('filename') if isinstance(entry.get('filename'), str) else None
         if not path.exists():
             path.write_bytes(info['raw'])
-            (self.cache / (info['sha256'] + '.json')).write_text(json.dumps({'url': info['url']}))
+            # File names often carry the design title; kept only for the copyright keyword check.
+            (self.cache / (info['sha256'] + '.json')).write_text(json.dumps({'url': info['url'], 'filename': (name or '')[:200]}))
         return dict(source_id=info['sha256'], width=info['width'], height=info['height'], url=info['url'], path=path)
 
     def _meta(self, sha):
@@ -219,10 +223,29 @@ class StudioV2:
             p = job['params']
             outputs, report = art2d.run(rgbs, folder, sides=p['sides'], boxes=p['boxes'],
                                         background=p['background'], log=lambda m: store.log(job_id, m))
+            # Screen before showing the result, so the card never appears without its rights level.
+            self._screen(job_id, [(side, folder / f'{side}.png') for side in outputs])
             store.update(job_id, status='review', outputs={'sides': outputs},
                          sides='+'.join(outputs))
         except Exception as exc:  # noqa: BLE001 - every failure must reach the UI
             store.update(job_id, status='failed', error=str(exc)[:500])
+
+    def _screen(self, job_id, images):
+        """Copyright screening; never overrides a level the user already chose."""
+        job = self.store.get(job_id)
+        try:
+            names = ' '.join(self._meta(src.get('source_id', '')).get('filename', '')
+                             for src in job['params'].get('sources', []) if isinstance(src, dict))
+            names += ' ' + self._meta(job.get('source_sha256') or '').get('filename', '')
+            level, reason, evidence = self.rights.check(images, source_url=job.get('source_url'), extra_text=names)
+        except Exception as exc:  # noqa: BLE001 - screening must not fail the job
+            self.store.log(job_id, f'Không kiểm tra được bản quyền: {exc}'[:300])
+            return job
+        changes = {'rights_evidence': evidence}
+        if job['rights'] == 'unknown':
+            changes.update(rights=level, rights_reason=reason)
+        self.store.log(job_id, 'Bản quyền: ' + reason)
+        return self.store.update(job_id, **changes)
 
     def _submit_3d(self, data, download):
         entry = (data.get('sources') or [None])[0]
@@ -235,7 +258,8 @@ class StudioV2:
         job = self.store.create('3d', 'ai' if legacy.get('openai') else 'local', source_url=info['url'],
                                 source_sha256=info['source_id'],
                                 params={'template': legacy.get('template'), 'panels': legacy.get('panels')})
-        return self.store.update(job['id'], legacy_id=legacy['id'])
+        job = self.store.update(job['id'], legacy_id=legacy['id'])
+        return self._screen(job['id'], [('mockup', info['path'])])
 
     def _refresh(self, job):
         if job['kind'] != '3d' or not job.get('legacy_id') or job['status'] in ('approved',):
@@ -266,11 +290,24 @@ class StudioV2:
 
     def set_rights(self, job_id, data):
         rights, reason = data.get('rights'), data.get('reason', '')
+        if rights not in ('unknown', 'green', 'yellow', 'red'):
+            raise ValueError('Mức bản quyền không hợp lệ.')
         if not isinstance(reason, str) or len(reason) > 500:
             raise ValueError('Lý do tối đa 500 ký tự.')
         if rights in ('green', 'red') and not reason.strip() and self.get(job_id)['rights'] == 'yellow':
             raise ValueError('Hãy ghi lý do khi đổi mức bản quyền từ Vàng.')
-        return self.store.update(job_id, rights=rights, rights_reason=reason.strip() or None)
+        before = self.get(job_id)
+        job = self.store.update(job_id, rights=rights, rights_reason=reason.strip() or None)
+        if rights == 'red':
+            self.rights.remember_red(job, reason)   # the same art is caught automatically next time
+        elif before['rights'] == 'red':
+            self.rights.forget(job_id)
+        return job
+
+    def rights_config(self, data=None):
+        if data and 'keywords' in data:
+            return self.rights.set_keywords(data['keywords'])
+        return self.rights.config()
 
     def approve(self, job_id):
         job = self.get(job_id)

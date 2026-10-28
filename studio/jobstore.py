@@ -15,7 +15,7 @@ KINDS = ('2d', '3d')
 MODES = ('local', 'ai')
 STATUSES = ('queued', 'running', 'review', 'approved', 'failed', 'interrupted')
 RIGHTS = ('unknown', 'green', 'yellow', 'red')
-JSON_FIELDS = ('params', 'outputs', 'logs')
+JSON_FIELDS = ('params', 'outputs', 'logs', 'rights_evidence')
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     source_sha256 TEXT,
     rights TEXT NOT NULL DEFAULT 'unknown',
     rights_reason TEXT,
+    rights_evidence TEXT NOT NULL DEFAULT '{}',
     params TEXT NOT NULL DEFAULT '{}',
     outputs TEXT NOT NULL DEFAULT '{}',
     logs TEXT NOT NULL DEFAULT '[]',
@@ -58,6 +59,9 @@ class JobStore:
         with self.lock, self.db:
             self.db.execute('PRAGMA journal_mode=WAL')
             self.db.executescript(SCHEMA)
+            columns = {r['name'] for r in self.db.execute('PRAGMA table_info(jobs)')}
+            if 'rights_evidence' not in columns:   # databases made before the rights check
+                self.db.execute("ALTER TABLE jobs ADD COLUMN rights_evidence TEXT NOT NULL DEFAULT '{}'")
             # A restart drops the in-memory queue; never resubmit silently (AI jobs cost money).
             self.db.execute("UPDATE jobs SET status='interrupted', error=?, updated_at=? "
                             "WHERE status IN ('queued','running')",
@@ -120,7 +124,7 @@ class JobStore:
             raise ValueError('Trạng thái không hợp lệ.')
         if 'rights' in changes and changes['rights'] not in RIGHTS:
             raise ValueError('Mức bản quyền không hợp lệ.')
-        allowed = {'status', 'sides', 'rights', 'rights_reason', 'params', 'outputs', 'error',
+        allowed = {'status', 'sides', 'rights', 'rights_reason', 'rights_evidence', 'params', 'outputs', 'error',
                    'cost_usd', 'legacy_id', 'drive_url', 'source_url', 'source_sha256'}
         if not set(changes) <= allowed:
             raise ValueError('Trường không hợp lệ: ' + ', '.join(sorted(set(changes) - allowed)))

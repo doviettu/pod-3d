@@ -54,7 +54,7 @@ function el(tag, attrs = {}, ...children) {
 $$('.tabs button').forEach(button => button.addEventListener('click', () => {
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b === button)));
   $$('.tab').forEach(t => { t.hidden = t.id !== `tab-${button.dataset.tab}`; });
-  if (button.dataset.tab === 'history') loadHistory();
+  if (button.dataset.tab === 'history') { loadHistory(); loadRights(); }
 }));
 
 // ---------- adding sources ----------
@@ -90,13 +90,13 @@ $$('.drop').forEach(drop => {
     drop.classList.remove('over');
     const files = [...event.dataTransfer.files].filter(f => f.type.startsWith('image/'));
     const url = event.dataTransfer.getData('text/uri-list') || event.dataTransfer.getData('text/plain');
-    if (files.length) addSources(kind, await Promise.all(files.map(async f => ({ image_base64: await fileToBase64(f) }))));
+    if (files.length) addSources(kind, await Promise.all(files.map(async f => ({ image_base64: await fileToBase64(f), filename: f.name }))));
     else if (/^https?:\/\//.test(url)) addSources(kind, [{ url: url.trim() }]);
   });
   input.addEventListener('change', async () => {
     const files = [...input.files];
     input.value = '';
-    if (files.length) addSources(kind, await Promise.all(files.map(async f => ({ image_base64: await fileToBase64(f) }))));
+    if (files.length) addSources(kind, await Promise.all(files.map(async f => ({ image_base64: await fileToBase64(f), filename: f.name }))));
   });
 });
 
@@ -112,7 +112,7 @@ document.addEventListener('paste', async event => {
   if (!['2d', '3d'].includes(active) || event.target.matches('input, textarea')) return;
   const files = [...event.clipboardData.files].filter(f => f.type.startsWith('image/'));
   const text = event.clipboardData.getData('text');
-  if (files.length) addSources(active, await Promise.all(files.map(async f => ({ image_base64: await fileToBase64(f) }))));
+  if (files.length) addSources(active, await Promise.all(files.map(async f => ({ image_base64: await fileToBase64(f), filename: f.name }))));
   else if (/^https?:\/\//.test(text)) addSources(active, [{ url: text.trim() }]);
 });
 
@@ -654,9 +654,18 @@ function rightsControl(job) {
   return select;
 }
 
+function rightsInfo(job) {
+  if (job.rights === 'unknown' && !job.rights_reason) return null;
+  const ev = job.rights_evidence || {};
+  return el('div', { class: `rights ${job.rights}` },
+    el('span', {}, job.rights_reason || ''),
+    ...(ev.links || []).map(l => el('a', { href: l.url, target: '_blank', rel: 'noopener noreferrer' }, l.label)));
+}
+
 function renderJob(job) {
   const status = el('span', { class: `badge ${job.status === 'failed' ? 'red' : job.status === 'approved' ? 'green' : ''}` }, STATUS_LABEL[job.status] || job.status);
-  const head = el('div', { class: 'row' }, el('b', {}, job.sku), status);
+  const rightsBadge = job.rights !== 'unknown' ? el('span', { class: `badge ${job.rights}` }, RIGHTS_LABEL[job.rights]) : null;
+  const head = el('div', { class: 'row' }, el('b', {}, job.sku), el('span', {}, rightsBadge, ' ', status));
   if (['queued', 'running', 'failed', 'interrupted'].includes(job.status)) {
     const last = job.logs && job.logs.length ? job.logs[job.logs.length - 1].message : '';
     return [el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head,
@@ -675,6 +684,7 @@ function renderJob(job) {
         el('div', { class: 'body' }, head.cloneNode(true),
           el('div', { class: 'muted' }, `${SIDE_LABEL[side]} · ${out.size[0]} × ${out.size[1]} px · ${out.dpi} DPI`),
           ...(out.warnings || []).map(w => el('div', { class: 'warn' }, w)),
+          rightsInfo(job),
           el('div', { class: 'actions' },
             el('button', { onclick: () => openViewer(full, `${job.sku} · ${SIDE_LABEL[side]}`) }, 'Mở rộng'),
             el('a', { class: 'button', href: full + '?download=1' }, 'Tải PNG'),
@@ -694,12 +704,29 @@ function renderJob(job) {
     }
     const zip = (job.outputs.artifacts || []).find(a => a.kind === 'zip');
     cards.push(el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head.cloneNode(true),
+      rightsInfo(job),
       zip ? el('a', { class: 'button', href: zip.url }, 'Tải bộ ZIP') : null,
       el('a', { class: 'button', href: '/legacy' }, 'Duyệt chữ/logo, xuất PSD'),
       el('div', { class: 'actions' }, rightsControl(job), approve))));
   }
   return cards.length ? cards : [el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head))];
 }
+
+// ---------- copyright keywords ----------
+async function loadRights() {
+  try {
+    const r = await api('/api/v2/rights-config');
+    $('#rights-keywords').value = r.keywords.join('\n');
+    $('#rights-info').textContent = `${r.keywords.length} từ khoá · ${r.blacklist_count} art trong danh sách đen · ` +
+      (r.ocr ? 'đọc chữ trên art: bật (Tesseract)' : 'đọc chữ trên art: tắt (cài Tesseract: brew install tesseract)');
+  } catch (error) { $('#rights-info').textContent = error.message; }
+}
+$('#rights-save').addEventListener('click', async () => {
+  try {
+    await api('/api/v2/rights-config', { keywords: $('#rights-keywords').value.split('\n') });
+    await loadRights();
+  } catch (error) { alert(error.message); }
+});
 
 // ---------- history ----------
 async function loadHistory() {

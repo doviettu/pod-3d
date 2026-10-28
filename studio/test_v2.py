@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -212,6 +213,21 @@ class StudioV2Tests(unittest.TestCase):
             self.v2.set_rights(job['id'], {'rights': 'green', 'reason': ''})
         self.v2.set_rights(job['id'], {'rights': 'green', 'reason': 'tự thiết kế'})
         self.assertEqual(self.v2.approve(job['id'])['status'], 'approved')
+
+    def test_jobs_are_screened_and_red_art_is_caught_next_time(self):
+        with patch('rights.ocr_available', return_value=False):
+            sid = self.v2.inspect({'sources': [{'image_base64': self.image}]})['sources'][0]['source_id']
+            job = self.v2.submit({'kind': '2d', 'sources': [{'source_id': sid}]})
+            self.engine.executor.submit(lambda: None).result()
+            done = self.v2.get(job['id'])
+            self.assertEqual(done['rights'], 'green')
+            self.assertEqual(len(done['rights_evidence']['hashes']), 2)
+            self.v2.set_rights(job['id'], {'rights': 'red', 'reason': 'logo thương hiệu'})
+            again = self.v2.submit({'kind': '2d', 'sources': [{'source_id': sid}], 'force': True})
+            self.engine.executor.submit(lambda: None).result()
+            self.assertEqual(self.v2.get(again['id'])['rights'], 'red')
+            self.v2.set_rights(job['id'], {'rights': 'green', 'reason': 'đã mua quyền'})
+            self.assertEqual(self.v2.rights_config()['blacklist_count'], 0)
 
     def test_bad_input(self):
         for data in ({'kind': '4d'}, {'kind': '2d', 'sources': []},

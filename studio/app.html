@@ -118,6 +118,14 @@
       <div class="row"><h2>Lịch sử</h2><button id="refresh">Tải lại</button></div>
       <table class="jobs"><thead><tr><th>SKU</th><th>Loại</th><th>Trạng thái</th><th>Bản quyền</th><th>Ngày</th><th></th></tr></thead><tbody id="jobs"></tbody></table>
     </div>
+    <details class="panel rights-panel">
+      <summary><b>Kiểm tra bản quyền</b> <span class="muted" id="rights-info"></span></summary>
+      <p class="muted">Mỗi job tự kiểm tra: trùng art đã đánh dấu Đỏ thì Đỏ; có từ khoá thương hiệu trong chữ trên art hoặc trong link thì Vàng; không thấy gì thì Xanh (chưa thấy dấu hiệu, không phải bảo đảm). Đổi một job sang Đỏ thì art đó tự vào danh sách đen.</p>
+      <label class="block">Từ khoá thương hiệu (mỗi dòng một từ)
+        <textarea id="rights-keywords" rows="10"></textarea>
+      </label>
+      <button id="rights-save">Lưu từ khoá</button>
+    </details>
   </section>
 </main>
 
