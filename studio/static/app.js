@@ -141,74 +141,183 @@ function renderSources(kind) {
   const host = $(`#sources-${kind}`);
   host.replaceChildren();
   s.sources.forEach((src, index) => {
-    const img = el('img', { src: `/api/v2/sources/${src.source_id}`, alt: `Ảnh ${index + 1}` });
-    const stage = el('div', { class: 'stage' }, img);
+    const img = el('img', { src: `/api/v2/sources/${src.source_id}`, alt: `Ảnh ${index + 1}`, draggable: 'false' });
+    const stage = el('div', { class: 'stage', tabindex: kind === '2d' ? '0' : null }, img);
     const remove = el('button', { type: 'button', onclick: () => {
       s.sources.splice(index, 1);
       if (kind === '2d') { s.manual = false; autoBoxes(); }
       renderSources(kind);
-    } }, 'Bỏ');
+    } }, 'Bỏ ảnh');
     const meta = el('div', { class: 'meta' },
       el('span', {}, `${src.width} × ${src.height} px`, src.url ? el('span', { class: 'muted' }, ' · từ link') : null),
-      kind === '2d' ? el('div', { class: 'chips' },
-        ['front', 'back'].map(side => el('button', {
-          type: 'button', class: s.active === side ? 'active' : '',
-          title: 'Kéo trên ảnh để vẽ lại khung',
-          onclick: () => { s.active = side; renderSources(kind); } }, `Vẽ khung ${SIDE_LABEL[side]}`)),
-        s.manual ? el('button', { type: 'button', onclick: () => { s.manual = false; autoBoxes(); renderSources(kind); } }, 'Tự nhận lại') : null,
-      ) : null,
       remove);
+    const parts = [stage];
     if (kind === '2d') {
+      parts.push(boxToolbar(index), boxInfo(src, index));
       for (const [side, spec] of Object.entries(s.boxes)) {
-        if (spec && spec.source === index) stage.append(boxEl(side, spec.box));
+        if (spec && spec.source === index) stage.append(boxEl(side, spec.box, index));
       }
-      enableDrawing(stage, index);
+      enableBoxEditing(stage, index);
     }
-    host.append(el('div', { class: 'source' }, stage, meta));
+    parts.push(meta);
+    host.append(el('div', { class: 'source' }, ...parts));
   });
   if (kind === '2d') {
-    const total = s.sources.reduce((n, src) => n + src.detection.garments.filter(g => g.art).length, 0);
-    $('#run-2d').disabled = !s.sources.length;
-    if (s.sources.length && !total && !s.manual) note('2d', 'Chưa tự tìm được vùng art. Hãy kéo trên ảnh để chọn vùng.', true);
+    // Re-rendering replaces the stage, so give keyboard focus back to the one being edited.
+    if (s.focus !== undefined) $(`#sources-2d .source:nth-child(${s.focus + 1}) .stage`)?.focus({ preventScroll: true });
+    const total = Object.values(s.boxes).filter(Boolean).length;
+    $('#run-2d').disabled = !s.sources.length || !total;
+    if (s.sources.length && !total) note('2d', 'Chưa tự tìm được vùng art. Bấm "+ Trước" hoặc kéo trên ảnh để chọn vùng.', true);
   } else {
     $('#run-3d').disabled = !s.sources.length;
   }
 }
 
-function boxEl(side, [x, y, w, h]) {
-  return el('div', { class: `box ${side}`, style: `left:${x * 100}%;top:${y * 100}%;width:${w * 100}%;height:${h * 100}%` },
-    el('span', {}, SIDE_LABEL[side]));
+// ---------- 2D box editor ----------
+document.addEventListener('pointerdown', event => {
+  if (!event.target.closest('#sources-2d')) state['2d'].focus = undefined;
+});
+// Each side (front/back) has at most one box, on any source image. Drag inside a box to
+// move it, drag a handle to resize, drag on empty image to draw the selected side again.
+const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'];
+const MIN_BOX = 0.03;
+
+function boxToolbar(index) {
+  const s = state['2d'];
+  return el('div', { class: 'boxbar' },
+    ['front', 'back'].map(side => {
+      const spec = s.boxes[side];
+      const here = spec && spec.source === index;
+      return el('button', {
+        type: 'button', class: `side ${side}${s.active === side ? ' active' : ''}`,
+        'aria-pressed': s.active === side ? 'true' : 'false',
+        title: here ? 'Chọn khung này để chỉnh' : 'Thêm khung vào ảnh này',
+        onclick: () => {
+          s.active = side;
+          if (!here) setBox(side, index, spec ? spec.box : defaultBox(index));
+          renderSources('2d');
+        } }, here ? `Khung ${SIDE_LABEL[side]}` : `+ ${SIDE_LABEL[side]}`);
+    }),
+    el('button', { type: 'button', class: 'ghost', title: 'Bỏ các khung đã chỉnh, dùng vùng máy tự nhận',
+      onclick: () => { s.manual = false; autoBoxes(); note('2d', ''); renderSources('2d'); } }, 'Tự nhận lại'));
 }
 
-function enableDrawing(stage, index) {
-  let start = null, ghost = null;
+function boxInfo(src, index) {
+  const lines = Object.entries(state['2d'].boxes).filter(([, spec]) => spec && spec.source === index).map(([side, spec]) => {
+    const w = Math.round(spec.box[2] * src.width), h = Math.round(spec.box[3] * src.height);
+    const small = Math.max(w, h) < 500;
+    return el('span', { class: small ? 'warn' : '' }, `${SIDE_LABEL[side]}: ${w} × ${h} px`,
+      small ? ' (ảnh nhỏ, bản in sẽ kém nét; nên tìm ảnh lớn hơn)' : '');
+  });
+  return lines.length ? el('div', { class: 'boxinfo' }, lines) : el('div', { class: 'boxinfo muted' }, 'Kéo trên ảnh để vẽ khung art.');
+}
+
+function defaultBox(index) {
+  // Centre of the garment found on this image, else the middle of the photo.
+  const g = state['2d'].sources[index].detection.garments[0];
+  const [gx, gy, gw, gh] = g ? g.garment : [0, 0, 1, 1];
+  return clampBox([gx + gw * 0.25, gy + gh * 0.22, gw * 0.5, gh * 0.5]);
+}
+
+function clampBox([x, y, w, h]) {
+  w = Math.min(1, Math.max(MIN_BOX, w));
+  h = Math.min(1, Math.max(MIN_BOX, h));
+  return [Math.min(1 - w, Math.max(0, x)), Math.min(1 - h, Math.max(0, y)), w, h].map(v => Math.round(v * 10000) / 10000);
+}
+
+function setBox(side, source, box) {
+  const s = state['2d'];
+  s.boxes[side] = { source, box: clampBox(box) };
+  s.manual = true;
+  note('2d', '');
+}
+
+function boxEl(side, box, index) {
+  const node = el('div', { class: `box ${side}${state['2d'].active === side ? ' active' : ''}`, 'data-side': side },
+    el('span', { class: 'label' }, SIDE_LABEL[side]),
+    el('button', { type: 'button', class: 'del', title: `Xoá khung ${SIDE_LABEL[side]}`, 'aria-label': `Xoá khung ${SIDE_LABEL[side]}`,
+      onpointerdown: event => event.stopPropagation(),
+      onclick: () => { delete state['2d'].boxes[side]; state['2d'].manual = true; renderSources('2d'); } }, '×'),
+    HANDLES.map(h => el('i', { class: `handle ${h}`, 'data-handle': h })));
+  placeBox(node, box);
+  return node;
+}
+
+function placeBox(node, [x, y, w, h]) {
+  Object.assign(node.style, { left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%` });
+}
+
+function enableBoxEditing(stage, index) {
+  const s = state['2d'];
+  let drag = null;
   const point = event => {
     const r = stage.getBoundingClientRect();
     return [Math.min(1, Math.max(0, (event.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (event.clientY - r.top) / r.height))];
   };
+  stage.addEventListener('dragstart', event => event.preventDefault());
   stage.addEventListener('pointerdown', event => {
-    start = point(event);
+    if (event.button !== 0) return;
+    event.preventDefault();
+    stage.focus({ preventScroll: true });
+    s.focus = index;
+    const boxNode = event.target.closest('.box');
+    const p = point(event);
+    if (boxNode) {
+      const side = boxNode.dataset.side;
+      s.active = side;
+      $$('.box', stage).forEach(b => b.classList.toggle('active', b === boxNode));
+      drag = { mode: event.target.dataset.handle || 'move', side, node: boxNode, start: p, box: [...s.boxes[side].box] };
+    } else {
+      // Draw the selected side on empty image; it replaces that side's box wherever it was.
+      const node = stage.querySelector(`.box[data-side="${s.active}"]`) || boxEl(s.active, [...p, 0, 0], index);
+      if (!node.isConnected) stage.append(node);
+      drag = { mode: 'draw', side: s.active, node, start: p, box: null };
+    }
     stage.setPointerCapture(event.pointerId);
-    ghost = boxEl(state['2d'].active, [...start, 0, 0]);
-    stage.append(ghost);
   });
   stage.addEventListener('pointermove', event => {
-    if (!start) return;
-    const [x, y] = point(event);
-    const box = [Math.min(x, start[0]), Math.min(y, start[1]), Math.abs(x - start[0]), Math.abs(y - start[1])];
-    Object.assign(ghost.style, { left: `${box[0] * 100}%`, top: `${box[1] * 100}%`, width: `${box[2] * 100}%`, height: `${box[3] * 100}%` });
-    ghost.dataset.box = JSON.stringify(box);
-  });
-  stage.addEventListener('pointerup', () => {
-    if (!start) return;
-    const box = ghost.dataset.box ? JSON.parse(ghost.dataset.box) : null;
-    start = null;
-    if (box && box[2] > 0.02 && box[3] > 0.02) {
-      const s = state['2d'];
-      s.boxes[s.active] = { source: index, box };
-      s.manual = true;
-      note('2d', '');
+    if (!drag) return;
+    const [px, py] = point(event);
+    const dx = px - drag.start[0], dy = py - drag.start[1];
+    let box;
+    if (drag.mode === 'draw') {
+      box = [Math.min(px, drag.start[0]), Math.min(py, drag.start[1]), Math.abs(dx), Math.abs(dy)];
+    } else if (drag.mode === 'move') {
+      const [x, y, w, h] = drag.box;
+      box = clampBox([x + dx, y + dy, w, h]);
+    } else {
+      let [x0, y0, x1, y1] = [drag.box[0], drag.box[1], drag.box[0] + drag.box[2], drag.box[1] + drag.box[3]];
+      if (drag.mode.includes('w')) x0 = Math.min(x1 - MIN_BOX, Math.max(0, x0 + dx));
+      if (drag.mode.includes('e')) x1 = Math.max(x0 + MIN_BOX, Math.min(1, x1 + dx));
+      if (drag.mode.includes('n')) y0 = Math.min(y1 - MIN_BOX, Math.max(0, y0 + dy));
+      if (drag.mode.includes('s')) y1 = Math.max(y0 + MIN_BOX, Math.min(1, y1 + dy));
+      box = [x0, y0, x1 - x0, y1 - y0];
     }
+    drag.current = box;
+    placeBox(drag.node, box);
+  });
+  const finish = () => {
+    if (!drag) return;
+    const { side, current, mode } = drag;
+    drag = null;
+    if (current && (mode !== 'draw' || (current[2] > MIN_BOX && current[3] > MIN_BOX))) setBox(side, index, current);
+    renderSources('2d');
+  };
+  stage.addEventListener('pointerup', finish);
+  stage.addEventListener('pointercancel', finish);
+  stage.addEventListener('focus', () => { s.focus = index; });
+  stage.addEventListener('keydown', event => {
+    const spec = s.boxes[s.active];
+    if (!spec || spec.source !== index) return;
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      delete s.boxes[s.active]; s.manual = true; event.preventDefault(); renderSources('2d'); return;
+    }
+    const step = event.shiftKey ? 0.02 : 0.004;
+    const move = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[event.key];
+    if (!move) return;
+    event.preventDefault();
+    const [x, y, w, h] = spec.box;
+    setBox(s.active, index, event.altKey ? [x, y, w + move[0], h + move[1]] : [x + move[0], y + move[1], w, h]);
     renderSources('2d');
   });
 }
@@ -220,7 +329,8 @@ $('#run-2d').addEventListener('click', async () => {
     kind: '2d', sides: sidesChoice(), background: $('input[name=background]:checked').value,
     sources: s.sources.map(src => ({ source_id: src.source_id })),
   };
-  if (s.manual) body.boxes = s.boxes;
+  // The boxes on screen are what the user checked, so always send them.
+  if (Object.values(s.boxes).some(Boolean)) body.boxes = s.boxes;
   try {
     $('#run-2d').disabled = true;
     note('2d', 'Đang xếp hàng…');

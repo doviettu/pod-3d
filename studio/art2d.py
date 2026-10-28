@@ -31,10 +31,16 @@ def _distance(lab, ref):
 
 
 def _fill_holes(mask):
+    """Fill enclosed holes. Background is whatever empty area touches the frame, so corners
+    cut off by sleeves or a hem running off the photo still count as background."""
     h, w = mask.shape
     flood = mask.copy()
     canvas = np.zeros((h + 2, w + 2), np.uint8)
-    cv2.floodFill(flood, canvas, (0, 0), 255)
+    edge = [(x, 0) for x in range(w)] + [(x, h - 1) for x in range(w)] \
+        + [(0, y) for y in range(h)] + [(w - 1, y) for y in range(h)]
+    for x, y in edge:
+        if flood[y, x] == 0:
+            cv2.floodFill(flood, canvas, (x, y), 255)
     return mask | cv2.bitwise_not(flood)
 
 
@@ -51,8 +57,12 @@ def garment_mask(rgb):
         border = np.concatenate([lab[:b].reshape(-1, 3), lab[-b:].reshape(-1, 3),
                                  lab[:, :b].reshape(-1, 3), lab[:, -b:].reshape(-1, 3)])
         background = np.median(border, axis=0)
-        spread = np.percentile(_distance(border, background), 95)
-        mask = (_distance(lab, background) > max(10.0, spread * 1.5)).astype(np.uint8) * 255
+        # The garment often runs off the frame (sleeves, hem), so judge the backdrop's own
+        # noise only from border pixels that look like it.
+        d_border = _distance(border, background)
+        inliers = d_border[d_border < 25]
+        spread = np.percentile(inliers, 95) if len(inliers) else 10.0
+        mask = (_distance(lab, background) > max(12.0, spread * 2)).astype(np.uint8) * 255
     k = max(3, min(mask.shape) // 150) | 1
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((k, k), np.uint8))
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((k * 3, k * 3), np.uint8))
@@ -253,6 +263,16 @@ def save_preview(canvas, path, size=900):
     Image.fromarray(np.uint8(out)).save(path, quality=88)
 
 
+def _garment_at(garments, box):
+    """The detected garment under the centre of a hand-drawn box (its fabric colour is used)."""
+    cx, cy = box[0] + box[2] / 2, box[1] + box[3] / 2
+    for g in garments:
+        x, y, w, h = g['garment']
+        if x <= cx <= x + w and y <= cy <= y + h:
+            return g
+    return garments[0] if garments else None
+
+
 def run(sources, folder, *, sides='auto', boxes=None, background='remove', log=print):
     """sources: list of RGB arrays (1 or 2). boxes: optional {'front': [x,y,w,h], 'back': [...]} normalised,
     each with 'source' index. Writes front.png/back.png + previews + report.json into folder."""
@@ -269,7 +289,7 @@ def run(sources, folder, *, sides='auto', boxes=None, background='remove', log=p
                 src = int(spec.get('source', 0))
                 if not 0 <= src < len(sources):
                     raise ValueError('Nguồn ảnh của vùng chọn không hợp lệ.')
-                garment = next((g for i, g in regions if i == src), None)
+                garment = _garment_at(detections[src]['garments'], spec['box'])
                 fabric = (garment or {}).get('fabric_lab') or [95, 0, 0]
                 overrides.append((side, (src, {'art': spec['box'], 'fabric_lab': fabric})))
         plan = overrides or plan

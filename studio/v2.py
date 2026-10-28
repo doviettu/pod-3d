@@ -141,9 +141,9 @@ class StudioV2:
                     or not isinstance(src, int) or not 0 <= src < count):
                 raise ValueError('Vùng chọn không hợp lệ.')
             x, y, w, h = box
-            if not (0 <= x < 1 and 0 <= y < 1 and 0 < w <= 1 - x + 1e-6 and 0 < h <= 1 - y + 1e-6):
+            if not (0 <= x < 1 and 0 <= y < 1 and 0 < w <= 1 - x + 1e-3 and 0 < h <= 1 - y + 1e-3):
                 raise ValueError('Vùng chọn nằm ngoài ảnh.')
-            clean[side] = {'box': [float(v) for v in box], 'source': src}
+            clean[side] = {'box': [float(x), float(y), float(min(w, 1 - x)), float(min(h, 1 - y))], 'source': src}
         return clean or None
 
     def _run_2d(self, job_id):

@@ -111,6 +111,23 @@ class Art2DTests(unittest.TestCase):
             self.assertLess(abs(box[0] - 283), 25)
             self.assertLess(box[0] + box[2], 800)                # front comes from the left shirt
 
+    def test_shirt_running_off_the_frame(self):
+        # Product photo cropped tight: sleeves touch the sides and the hem runs off the bottom,
+        # which cuts the white backdrop into separate corners.
+        img = np.full((700, 680, 3), 255, np.uint8)
+        pts = np.array([[200, 20], [480, 20], [679, 160], [679, 260], [560, 240], [560, 699],
+                        [120, 699], [120, 240], [0, 260], [0, 160]])
+        cv2.fillPoly(img, [pts], (25, 22, 20))
+        cv2.rectangle(img, (180, 150), (500, 540), (160, 90, 30), -1)
+        cv2.circle(img, (380, 230), 40, (60, 220, 250), -1)
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        garment = art2d.detect(rgb)['garments'][0]
+        x, y, w, h = (round(v * s) for v, s in zip(garment['art'], (680, 700, 680, 700)))
+        self.assertLess(abs(x - 180), 15)
+        self.assertLess(abs(y - 150), 15)
+        self.assertLess(abs(x + w - 500), 15)
+        self.assertLess(abs(y + h - 540), 15)
+
     def test_side_choice_and_no_art(self):
         regions = [(0, {'art': [0, 0, .1, .1]}), (0, {'art': [.5, 0, .1, .1]})]
         self.assertEqual([s for s, _ in art2d.assign_sides(regions, 'both')], ['front', 'back'])
