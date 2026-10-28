@@ -50,9 +50,38 @@ Trình duyệt ── FastAPI (127.0.0.1) ── Hàng đợi 1 worker (SQLite)
 3. **Trải phẳng → lấp phần khuất → làm sạch → phóng to → xuất đúng kích thước khuôn** (engine hiện có).
 
 **AI**
-1. Gửi mockup + ảnh hướng dẫn khuôn cho gpt-image, phục hồi artwork từng mảnh.
-2. Code local ghép lên khuôn đúng kích thước, DPI. AI không quyết định đường cắt.
-3. Hiện ước tính số lần gọi API trước khi chạy; ghi chi phí thực vào Sheet.
+1. Chạy Local trước (miễn phí), chấm điểm từng mảnh.
+2. Một lần gọi model đọc ảnh rẻ để lập **bản mô tả thiết kế** (bảng màu, hoạ tiết, dải lặp, chữ). Bản này dùng chung cho mọi mảnh.
+3. Gọi gpt-image **một lần cho cả bộ**: xin một tấm "sheet" xếp sẵn các mảnh theo lưới cố định, code tự cắt ra. Mảnh nào Local đã đạt thì không gửi.
+4. Code local phóng to, ghép lên khuôn đúng kích thước, DPI. AI không quyết định đường cắt.
+
+### Tối ưu chi phí API
+
+Nguyên tắc: **mỗi ảnh nguồn chỉ trả tiền một lần, và chỉ trả cho phần Local làm không được.**
+
+- **Không gọi lặp**: khóa cache = hash ảnh nguồn + hash prompt + model + cấu hình. Trùng khóa thì lấy kết quả cũ, kể cả khi bấm chạy lại. Không tự thử lại khi lỗi; nút "Thử lại" phải bấm tay và hiện giá.
+- **Gộp lệnh**: 1 lệnh sheet thay cho 6 lệnh từng mảnh. Sửa một chỗ thì dùng phục hồi theo vùng có mask (đã có `masked_repair.py`), không sinh lại cả mảnh.
+- **Gửi ít, nhận ít**: cắt ảnh nguồn sát vùng art, thu về cạnh 1024 px; xin ảnh 1K, chất lượng `medium`. Phóng to bằng Real-ESRGAN trên máy, không trả tiền cho độ phân giải.
+- **Thử rẻ trước**: kiểu dáng mới chạy `low` một lần để kiểm tra bố cục, đạt rồi mới chạy `medium`.
+- **Hàng loạt ban đêm**: dùng Batch API (giảm khoảng 50%) nếu model ảnh hỗ trợ; nếu không thì chạy tuần tự bình thường.
+- **Trần ngân sách**: đặt mức tối đa mỗi ngày/tháng. Trước khi chạy hiện ước tính; vượt trần thì dừng và hỏi. Ghi token và tiền thực tế của từng lệnh vào Sheet.
+
+### Sinh prompt hiệu quả
+
+Prompt không viết tay mỗi lần mà **ghép từ khuôn**, để giống hệt nhau giữa các lần chạy (cache trúng) và dễ đo:
+
+```
+[Phần cố định]  vai trò + luật chung: ảnh phẳng, bỏ nếp vải/bóng/ánh sáng,
+                không chữ/logo (dựng lớp riêng), không bịa phần khuất ngoài mô tả
+[Theo kiểu dáng] lưới sheet, tên và tỉ lệ từng mảnh, hướng hoạ tiết
+                (lấy từ thư viện kiểu dáng, ví dụ tay áo = dải ngang)
+[Theo thiết kế]  bản mô tả JSON: màu HEX, hoạ tiết, chu kỳ dải lặp, nền
+[Theo lần chạy] chỉ những mảnh cần làm + ghi chú của bạn (tối đa vài dòng)
+```
+
+- Ngắn, liệt kê, có số đo cụ thể; tránh câu mơ hồ kiểu "đẹp, chất lượng cao".
+- Mỗi kiểu dáng lưu 1–2 ví dụ đạt và lỗi thường gặp, đưa vào phần luật.
+- Mỗi lệnh ghi lại phiên bản prompt + điểm chất lượng; prompt nào cho điểm cao thì thành mặc định. Theo dõi trên tab **Prompt** của Sheet.
 
 **Thư viện kiểu dáng** (trang riêng): mỗi kiểu gồm tên, 6 mảnh và kích thước xưởng, ảnh tham chiếu, các map đã hiệu chỉnh theo góc chụp, trạng thái "đã duyệt in thật".
 
@@ -78,7 +107,8 @@ POD Studio/
 Sheet tự tạo các tab:
 - **Jobs**: SKU, ngày, loại 2D/3D, chế độ, link nguồn, kiểu dáng, trạng thái, ảnh nhỏ `=IMAGE()`, link thư mục, chi phí AI, ghi chú, quyền sử dụng.
 - **Kiểu dáng**: danh sách thư viện và kích thước mảnh.
-- **Cài đặt**: quy tắc đặt SKU, lề an toàn.
+- **Prompt**: phiên bản prompt, số lần dùng, điểm chất lượng trung bình, chi phí trung bình.
+- **Cài đặt**: quy tắc đặt SKU, lề an toàn, trần ngân sách AI.
 
 SQLite vẫn là gốc; Sheet là bản sao để xem và lọc. Đồng bộ chạy khi bấm Duyệt, lỗi mạng thì xếp hàng thử lại.
 
@@ -90,7 +120,7 @@ SQLite vẫn là gốc; Sheet là bản sao để xem và lọc. Đồng bộ ch
 - [ ] 4. Pipeline 2D (tìm vùng, phẳng, bỏ nền, phóng to, canvas 4500 × 5400) → Verify: 5 ảnh mẫu ra PNG đúng cỡ, có alpha, 300 DPI.
 - [ ] 5. Trình xem OpenSeadragon + so sánh trước/sau → Verify: zoom tới pixel trên mảnh 6048 × 6559 mượt.
 - [ ] 6. Thư viện kiểu dáng + nhận dáng tự động → Verify: ảnh sweater/hoodie mẫu được nhận đúng kiểu, ảnh lạ hỏi chọn tay.
-- [ ] 7. Nối 3D Local và 3D AI vào luồng mới → Verify: mockup Home Alone ra đủ 6 mảnh đúng kích thước theo cả 2 chế độ.
+- [ ] 7. Nối 3D Local và 3D AI vào luồng mới (khuôn prompt, cache, sheet 1 lệnh, trần ngân sách) → Verify: mockup Home Alone ra đủ 6 mảnh theo cả 2 chế độ; chạy AI lần 2 cùng ảnh không phát sinh lệnh mới.
 - [ ] 8. Google Drive + Sheet (OAuth, tạo cây thư mục, ghi dòng) → Verify: duyệt 1 job thì thấy thư mục và dòng mới trong Sheet.
 - [ ] 9. Kiểm tra tổng: chạy 3 job 2D + 2 job 3D từ đầu tới Drive → Verify: Sheet có 5 dòng, mọi link mở được.
 
