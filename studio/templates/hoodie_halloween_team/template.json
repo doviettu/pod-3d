@@ -1,0 +1,167 @@
+{
+  "name": "hoodie_halloween_team",
+  "label": "Hoodie Halloween · Tay đen · Sau trái / trước phải",
+  "dpi": 300,
+  "metadata": {
+    "production_ready": false,
+    "allow_geometry": false,
+    "note": "Bố cục hình học tham chiếu, cần duyệt artwork và xác nhận canvas xưởng trước khi in.",
+    "background": "white",
+    "size_basis": "existing-hoodie-canvas-unverified",
+    "visible_views": [
+      "Back",
+      "Front"
+    ],
+    "missing_views": [],
+    "reference_resolution": [
+      447,
+      447
+    ],
+    "source_sha256": "dcea9eb9d3fe9baac49e1d9852e5ccbe3f89baf3a4f0d97a536745f29799f602"
+  },
+  "panels": [
+    {
+      "name": "Front",
+      "size": [
+        5100,
+        6300
+      ],
+      "source": "unwrap",
+      "method": "quad",
+      "quad": [
+        [
+          0.46,
+          0.4
+        ],
+        [
+          0.86,
+          0.4
+        ],
+        [
+          0.9,
+          0.92
+        ],
+        [
+          0.43,
+          0.92
+        ]
+      ],
+      "center": 0.66,
+      "wrap": 0.35
+    },
+    {
+      "name": "Back",
+      "size": [
+        5100,
+        6300
+      ],
+      "source": "unwrap",
+      "method": "quad",
+      "quad": [
+        [
+          0.12,
+          0.14
+        ],
+        [
+          0.48,
+          0.14
+        ],
+        [
+          0.48,
+          0.69
+        ],
+        [
+          0.11,
+          0.69
+        ]
+      ],
+      "center": 0.3,
+      "wrap": 0.35,
+      "hide": [
+        [
+          [
+            0.4,
+            0.28
+          ],
+          [
+            0.61,
+            0.24
+          ],
+          [
+            1,
+            0.24
+          ],
+          [
+            1,
+            1
+          ],
+          [
+            0.3,
+            1
+          ],
+          [
+            0.34,
+            0.5
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "Hood",
+      "size": [
+        1800,
+        1150
+      ],
+      "source": "unwrap",
+      "method": "quad",
+      "quad": [
+        [
+          0.19,
+          0.025
+        ],
+        [
+          0.39,
+          0.025
+        ],
+        [
+          0.4,
+          0.18
+        ],
+        [
+          0.18,
+          0.18
+        ]
+      ],
+      "center": 0.29,
+      "wrap": 0.3
+    },
+    {
+      "name": "Left",
+      "size": [
+        1500,
+        2100
+      ],
+      "source": "solid",
+      "sample": [
+        0.92,
+        0.6,
+        0.96,
+        0.67
+      ]
+    },
+    {
+      "name": "Right",
+      "size": [
+        1500,
+        2100
+      ],
+      "source": "solid",
+      "sample": [
+        0.36,
+        0.58,
+        0.4,
+        0.64
+      ]
+    }
+  ]
+}

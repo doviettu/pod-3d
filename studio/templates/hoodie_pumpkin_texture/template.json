@@ -1,0 +1,161 @@
+{
+  "name": "hoodie_pumpkin_texture",
+  "label": "Hoodie bí ngô · Phủ họa tiết · Trước trái / sau phải",
+  "dpi": 300,
+  "metadata": {
+    "production_ready": false,
+    "allow_geometry": false,
+    "note": "Bố cục hình học tham chiếu, cần duyệt artwork và xác nhận canvas xưởng trước khi in.",
+    "background": "complex",
+    "size_basis": "existing-hoodie-canvas-unverified",
+    "visible_views": [
+      "Front",
+      "Back"
+    ],
+    "missing_views": [],
+    "reference_resolution": [
+      554,
+      554
+    ],
+    "source_sha256": "31d4f0019d6ed12a81de636f320a4fc9f1637e932df37c7b106f91c1442070a7"
+  },
+  "panels": [
+    {
+      "name": "Front",
+      "size": [
+        5100,
+        6300
+      ],
+      "source": "unwrap",
+      "method": "quad",
+      "quad": [
+        [
+          0.16,
+          0.34
+        ],
+        [
+          0.45,
+          0.34
+        ],
+        [
+          0.47,
+          0.95
+        ],
+        [
+          0.15,
+          0.95
+        ]
+      ],
+      "center": 0.3,
+      "wrap": 0.4
+    },
+    {
+      "name": "Back",
+      "size": [
+        5100,
+        6300
+      ],
+      "source": "unwrap",
+      "method": "quad",
+      "quad": [
+        [
+          0.6,
+          0.16
+        ],
+        [
+          0.87,
+          0.16
+        ],
+        [
+          0.88,
+          0.6
+        ],
+        [
+          0.6,
+          0.6
+        ]
+      ],
+      "center": 0.735,
+      "wrap": 0.4
+    },
+    {
+      "name": "Hood",
+      "size": [
+        1800,
+        1150
+      ],
+      "source": "unwrap",
+      "method": "quad",
+      "quad": [
+        [
+          0.65,
+          0.04
+        ],
+        [
+          0.8,
+          0.04
+        ],
+        [
+          0.86,
+          0.19
+        ],
+        [
+          0.63,
+          0.19
+        ]
+      ],
+      "center": 0.735,
+      "wrap": 0.35
+    },
+    {
+      "name": "Left",
+      "size": [
+        1500,
+        2100
+      ],
+      "source": "unwrap",
+      "method": "tube",
+      "curve": [
+        [
+          0.49,
+          0.38
+        ],
+        [
+          0.56,
+          0.62
+        ],
+        [
+          0.5,
+          0.88
+        ]
+      ],
+      "halfwidth": 0.035,
+      "wrap": 0.4
+    },
+    {
+      "name": "Right",
+      "size": [
+        1500,
+        2100
+      ],
+      "source": "unwrap",
+      "method": "tube",
+      "curve": [
+        [
+          0.12,
+          0.37
+        ],
+        [
+          0.075,
+          0.6
+        ],
+        [
+          0.13,
+          0.86
+        ]
+      ],
+      "halfwidth": 0.035,
+      "wrap": 0.4
+    }
+  ]
+}

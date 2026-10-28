@@ -1,0 +1,56 @@
+{
+  "name": "tshirt_stepback_back",
+  "label": "Áo thun Stepback · Mặt lưng · Bản nháp",
+  "dpi": 72,
+  "metadata": {
+    "production_ready": false,
+    "allow_geometry": false,
+    "note": "Chỉ phục hồi mặt lưng. Canvas làm việc theo ảnh nguồn, chưa phải kích thước in xưởng; không suy đoán mặt trước.",
+    "background": "model",
+    "size_basis": "reference-pixels-only",
+    "visible_views": [
+      "Back"
+    ],
+    "missing_views": [
+      "Front",
+      "sleeves",
+      "collar"
+    ],
+    "reference_resolution": [
+      1080,
+      1080
+    ],
+    "source_sha256": "c34ad1b3c15adfb7760396f2d9e93e32b062c3ac145133f40b1e8b72eb11c3e1"
+  },
+  "panels": [
+    {
+      "name": "Back",
+      "size": [
+        384,
+        568
+      ],
+      "source": "unwrap",
+      "method": "quad",
+      "quad": [
+        [
+          0.33,
+          0.365
+        ],
+        [
+          0.67,
+          0.365
+        ],
+        [
+          0.66,
+          0.89
+        ],
+        [
+          0.29,
+          0.89
+        ]
+      ],
+      "center": 0.49,
+      "wrap": 0
+    }
+  ]
+}

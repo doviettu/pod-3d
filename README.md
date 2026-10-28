@@ -66,3 +66,13 @@ Càng nhiều bộ mẫu cùng dáng, bản đồ trải phẳng càng chính x�
 ## Trạng thái
 
 Bản thử nghiệm. Vùng giữa thân trước/sau khớp tốt với file thật; phần hai bên và tay áo (mockup không thấy rõ) là phỏng đoán và cần kiểm tra trước khi in. Mũ hoodie chưa hiệu chỉnh được.
+
+## POD Studio (giao diện web)
+
+Thư mục `studio/` là giao diện web chạy trên Mac (chuyển từ bản Codex làm ở `/Volumes/ViTu/Claude Codex/POD/pod-studio`). Mở bằng `studio/start.command` hoặc:
+
+```bash
+.venv/bin/python studio/studio.py      # rồi mở http://127.0.0.1:8765
+```
+
+Chi tiết ở [studio/README.md](studio/README.md). Kế hoạch v2 ở [pod-studio-redesign.md](pod-studio-redesign.md), nghiên cứu cũ ở `docs/research/`.

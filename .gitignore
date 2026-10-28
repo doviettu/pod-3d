@@ -5,3 +5,6 @@ models/*.pt
 *_panels/
 *_panels.zip
 .DS_Store
+._*
+.env
+*.key
