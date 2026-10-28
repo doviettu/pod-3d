@@ -152,7 +152,7 @@ Chạy tự động cho mọi job, ngay sau bước tìm vùng art, trước khi
 - [~] 4b. (Đã có bộ test vàng + mốc + kỹ thuật 1) Bộ test vàng + 5 kỹ thuật ưu tiên trong `docs/local-quality.md` → Verify: bảng điểm SSIM/ΔE trước-sau trên 3 bộ mẫu, chỉ bật kỹ thuật tăng điểm.
 - [x] 5. Trình xem OpenSeadragon + so sánh trước/sau → Verify: zoom tới pixel trên mảnh 6048 × 6559 mượt.
 - [x] 6. Thư viện kiểu dáng + nhận dáng tự động → Verify: ảnh sweater/hoodie mẫu được nhận đúng kiểu, ảnh lạ hỏi chọn tay. (Có thêm: tạo khuôn mới trên trang bằng 4 góc mỗi mảnh, tab Thư viện.)
-- [ ] 7. Nối 3D Local và 3D AI vào luồng mới (khuôn prompt, cache, sheet 1 lệnh, trần ngân sách) → Verify: mockup Home Alone ra đủ 6 mảnh theo cả 2 chế độ; chạy AI lần 2 cùng ảnh không phát sinh lệnh mới.
+- [x] 7. Nối 3D Local và 3D AI vào luồng mới (khuôn prompt, cache, sheet 1 lệnh, trần ngân sách) → Verify: mockup Home Alone ra đủ 6 mảnh theo cả 2 chế độ; chạy AI lần 2 cùng ảnh không phát sinh lệnh mới. (Đã làm: sheet 1 lệnh, cache theo hash, tự chọn mảnh Local yếu, trần ngày/tháng + sổ chi tiêu, prompt ghép khuôn có phiên bản. Chưa làm: lệnh mô tả thiết kế bằng model đọc ảnh, chạy thử `low` trước, Batch API.)
 - [ ] 8. Google Drive + Sheet (OAuth, tạo cây thư mục, ghi dòng) → Verify: duyệt 1 job thì thấy thư mục và dòng mới trong Sheet.
 - [ ] 8b. Kiểm tra bản quyền (pHash, OCR + từ khoá, gộp vào lệnh AI mô tả, nhãn Xanh/Vàng/Đỏ, thư mục và cột Sheet) → Verify: mockup Home Alone bị gắn Đỏ (Disney/Fox); một art chữ tự viết ra Xanh; đổi một job sang Đỏ thì ảnh trùng lần sau tự Đỏ.
 - [ ] 9. Kiểm tra tổng: chạy 3 job 2D + 2 job 3D từ đầu tới Drive → Verify: Sheet có 5 dòng, mọi link mở được.

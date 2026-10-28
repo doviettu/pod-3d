@@ -380,17 +380,67 @@ function fillTemplates(selected) {
   $('#run-3d').disabled = !state['3d'].sources.length || !$('#template').value;
 }
 
+const AI_PANELS = ['Front', 'Back', 'Sleeve', 'Hood', 'Left', 'Right', 'FrontLeft', 'FrontRight'];
+
+function aiMode() { return $('input[name=aimode]:checked').value; }
+
 function renderPanels() {
   const tpl = state.templates.find(t => t.name === $('#template').value);
-  const allowed = ['Front', 'Back', 'Sleeve'];
-  $('#panel-list').replaceChildren(...(tpl ? tpl.panels : []).filter(p => allowed.includes(p.name)).map(p =>
-    el('label', {}, el('input', { type: 'checkbox', value: p.name, checked: p.name === 'Front' }), ` ${p.name}`)));
+  const sheet = aiMode() === 'sheet';
+  const auto = sheet && $('#ai-auto').checked;
+  $('#ai-auto').closest('label').hidden = !sheet;
+  $('#panel-list').hidden = auto;
+  $('#panel-list').replaceChildren(...(tpl ? tpl.panels : []).filter(p => AI_PANELS.includes(p.name)).map(p =>
+    el('label', {}, el('input', { type: 'checkbox', value: p.name, checked: p.name === 'Front', onchange: estimateAI }), ` ${p.name}`)));
+  estimateAI();
 }
+
+function aiPanels() {
+  return aiMode() === 'sheet' && $('#ai-auto').checked ? 'auto' : $$('#panel-list input:checked').map(i => i.value);
+}
+
+let estimateTimer = null;
+function estimateAI() {
+  clearTimeout(estimateTimer);
+  const out = $('#ai-estimate');
+  if ($('input[name=mode3d]:checked').value !== 'ai' || !state['3d'].sources.length || !$('#template').value) { out.textContent = ''; return; }
+  estimateTimer = setTimeout(async () => {
+    try {
+      const r = await api('/api/v2/ai-estimate', { template: $('#template').value, ai_mode: aiMode(), panels: aiPanels(),
+        source_id: state['3d'].sources[0].source_id });
+      state.aiEstimate = r;
+      const b = r.budget;
+      out.replaceChildren(
+        el('b', {}, r.cached ? 'Đã có kết quả cho ảnh này: 0 lệnh, $0' : `Ước tính: ${r.calls} lệnh ≈ $${r.usd.toFixed(2)}`),
+        el('br'), el('span', { class: 'muted' }, `Đã dùng hôm nay ~$${b.spent_today_usd.toFixed(2)} / trần $${b.daily_usd.toFixed(2)} · tháng ~$${b.spent_month_usd.toFixed(2)} / $${b.monthly_usd.toFixed(2)} `),
+        el('button', { type: 'button', class: 'linkish', onclick: editBudget }, 'Sửa trần'),
+        r.key_configured ? null : el('div', { class: 'bad' }, 'Chưa có khoá OpenAI: thêm ở Công cụ duyệt chi tiết → Cấu hình.'));
+    } catch (error) {
+      out.textContent = error.message;
+    }
+  }, 250);
+}
+
+async function editBudget() {
+  const b = state.aiEstimate ? state.aiEstimate.budget : await api('/api/v2/ai-budget');
+  const daily = prompt('Trần chi tiêu mỗi ngày (USD):', b.daily_usd);
+  if (daily === null) return;
+  const monthly = prompt('Trần chi tiêu mỗi tháng (USD):', b.monthly_usd);
+  if (monthly === null) return;
+  try {
+    await api('/api/v2/ai-budget', { daily_usd: Number(daily), monthly_usd: Number(monthly) });
+    estimateAI();
+  } catch (error) { note('3d', error.message, true); }
+}
+
+$$('input[name=aimode]').forEach(r => r.addEventListener('change', renderPanels));
+$('#ai-auto').addEventListener('change', renderPanels);
 
 $('#style').addEventListener('change', () => { fillTemplates(); if (state['3d'].marking) startMarking(); });
 $('#template').addEventListener('change', () => { renderPanels(); $('#run-3d').disabled = !state['3d'].sources.length || !$('#template').value; });
 $$('input[name=mode3d]').forEach(r => r.addEventListener('change', () => {
   $('#panels-ai').hidden = $('input[name=mode3d]:checked').value !== 'ai';
+  estimateAI();
 }));
 
 async function detectTemplate() {
@@ -410,6 +460,7 @@ async function detectTemplate() {
       r.candidates.length ? el('p', { class: 'muted' }, 'Gần nhất: ' + r.candidates.slice(0, 3)
         .map(c => `${c.template} ${Math.round(c.score * 100)}%`).join(' · ')) : null);
     if (!r.selected && !$('#template').value) note('3d', 'Chọn kiểu dáng rồi bấm "Tạo khuôn mới từ ảnh này".');
+    estimateAI();
   } catch (error) {
     box.replaceChildren(el('span', { class: 'bad' }, 'Không nhận diện được: ' + error.message));
   }
@@ -547,12 +598,17 @@ function renderLibrary() {
 
 $('#run-3d').addEventListener('click', async () => {
   const ai = $('input[name=mode3d]:checked').value === 'ai';
-  const panels = $$('#panel-list input:checked').map(i => i.value);
-  if (ai && !confirm(`Gửi ${panels.length} mảnh lên OpenAI (có phí). Tiếp tục?`)) return;
+  const panels = aiPanels();
+  if (ai) {
+    const e = state.aiEstimate;
+    const what = panels === 'auto' ? 'các mảnh Local thấy ít' : `${panels.length} mảnh`;
+    const cost = e ? (e.cached ? 'đã có kết quả, không tốn phí' : `${e.calls} lệnh ≈ $${e.usd.toFixed(2)}`) : 'có phí';
+    if (!confirm(`Gửi ${what} lên OpenAI (${cost}). Tiếp tục?`)) return;
+  }
   try {
     $('#run-3d').disabled = true;
     const job = await api('/api/v2/jobs', {
-      kind: '3d', template: $('#template').value, openai: ai, panels: ai ? panels : [],
+      kind: '3d', template: $('#template').value, openai: ai, panels: ai ? panels : [], ai_mode: aiMode(),
       use_model: $('#use-model').checked, sources: [{ source_id: state['3d'].sources[0].source_id }],
     });
     note('3d', '');

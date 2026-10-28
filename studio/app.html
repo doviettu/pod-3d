@@ -87,9 +87,13 @@
           <label><input type="radio" name="mode3d" value="local" checked> Local (miễn phí)</label>
           <label><input type="radio" name="mode3d" value="ai"> AI · OpenAI (có phí)</label>
         </fieldset>
-        <fieldset id="panels-ai" hidden>
-          <legend>Mảnh gửi AI (tối đa 3)</legend>
+        <fieldset id="panels-ai" class="stack" hidden>
+          <legend>Gọi OpenAI tiết kiệm</legend>
+          <label><input type="radio" name="aimode" value="sheet" checked> Gộp 1 lệnh cho cả bộ <span class="muted">— rẻ nhất, mọi mảnh trong một ảnh</span></label>
+          <label><input type="radio" name="aimode" value="panel"> Từng mảnh <span class="muted">— nét hơn, mỗi mảnh 1 lệnh (tối đa 3)</span></label>
+          <label class="check"><input type="checkbox" id="ai-auto" checked> Chỉ gửi mảnh Local thấy ít (tự chọn sau khi chạy Local)</label>
           <div id="panel-list"></div>
+          <p class="cost" id="ai-estimate"></p>
         </fieldset>
         <label class="check"><input type="checkbox" id="use-model" checked> Phóng to bằng Real-ESRGAN</label>
         <button class="primary" id="run-3d" disabled>Trải phẳng</button>

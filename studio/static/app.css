@@ -108,3 +108,6 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 .tpl .noimg { display: grid; place-items: center; color: var(--muted); font-size: 13px; }
 .tpl figcaption { padding: 6px 8px; font-size: 13px; }
 .tpl figcaption b { display: block; }
+.cost { font-size: 13px; margin: 6px 0 0; }
+.linkish { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; font-size: 13px; cursor: pointer; }
+#panel-list label { margin-right: 10px; }

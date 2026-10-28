@@ -22,6 +22,8 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 from PIL import Image
 
 from openai_api import Settings, check_connection, reconstruct_artwork, place_artwork
+import ai_sheet
+import openai_api
 from review import FontLibrary, Review
 from garment_preview import create_garment_preview
 from online_auth import OnlineAuth, is_online
@@ -82,6 +84,8 @@ class Engine:
         self.references = ReferenceLibrary(Path(engine_root) / 'samples')
         self.root = Path(jobs_dir)
         self.root.mkdir(parents=True, exist_ok=True)
+        self.ai_cache = ai_sheet.Cache(self.root.parent / 'ai-cache')
+        self.budget = ai_sheet.Budget(self.root.parent)
         self.lock = threading.RLock()
         self.postprocess_lock = threading.Lock()
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="pod")
@@ -209,14 +213,21 @@ class Engine:
             if not isinstance(data.get(option, False), bool):
                 raise ValueError("Tuỳ chọn xử lý phải là bật hoặc tắt.")
         use_openai = data.get("openai", False)
+        ai_mode = data.get("ai_mode", "panel")  # the legacy page sends none; the v2 page asks for "sheet"
+        if ai_mode not in ("sheet", "panel"):
+            raise ValueError("Cách gọi AI phải là gộp 1 lệnh hoặc từng mảnh.")
         panels = data.get("panels", ["Front"]) if use_openai else []
-        if not isinstance(panels, list) or (use_openai and not panels):
+        auto_panels = use_openai and ai_mode == "sheet" and panels == "auto"
+        if auto_panels:
+            panels = []
+        elif not isinstance(panels, list) or (use_openai and not panels):
             raise ValueError("Hãy chọn mảnh cần chỉnh bằng OpenAI.")
         if any(not isinstance(p, str) for p in panels):
             raise ValueError("Hãy chọn mảnh cần chỉnh bằng OpenAI.")
         allowed = {p["name"] for p in info["panels"]} & set(GENERATION_PANELS)
-        if len(panels) > 3 or len(set(panels)) != len(panels) or not set(panels) <= allowed:
-            raise ValueError('Chọn tối đa 3 mảnh có trong mẫu để phục hồi bằng OpenAI.')
+        most = ai_sheet.MAX_SHEET_PANELS if ai_mode == "sheet" else 3
+        if len(panels) > most or len(set(panels)) != len(panels) or not set(panels) <= allowed:
+            raise ValueError(f'Chọn tối đa {most} mảnh có trong mẫu để phục hồi bằng OpenAI.')
         notes = data.get('design_notes', '')
         if not isinstance(notes, str) or len(notes) > 2000 or any(ord(c) < 32 and c not in '\n\t' for c in notes):
             raise ValueError('Ghi chú thiết kế tối đa 2000 ký tự.')
@@ -243,6 +254,9 @@ class Engine:
         brief = self.design_plan(data)['spec']
         config = SimpleNamespace(api_key=self.settings.api_key, model=self.settings.model,
                                  image_size=self.settings.image_size, quality=self.settings.quality)
+        if use_openai:
+            self.budget.check(self.ai_estimate(name, panels, ai_mode, brief, hashlib.sha256(raw).hexdigest(),
+                                               notes, config)['usd'])
         with self.lock:
             if self.postprocess_lock.locked():
                 raise ValueError('Đang hậu kỳ hoặc xuất PSD; đợi tác vụ này xong rồi tạo công việc mới.')
@@ -257,6 +271,7 @@ class Engine:
                    "template": name, "filename": str(filename)[:200], "openai": use_openai,
                    "provider": "openai" if use_openai else "local",
                    "use_model": data.get("use_model", True), "panels": panels,
+                   "ai_mode": ai_mode if use_openai else None, "auto_panels": auto_panels,
                    "model": config.model if use_openai else None, "image_size": config.image_size if use_openai else None,
                    "quality": config.quality if use_openai else None,
                    "workflow": 'shared-artwork-v2' if use_openai else 'offline-coverage-v1',
@@ -270,6 +285,30 @@ class Engine:
             self.update(job_id)
             self.executor.submit(self.process, job_id, folder / ("input" + suffix), config)
             return self.with_quality(copy.deepcopy(job))
+
+    def ai_estimate(self, name, panels, ai_mode, brief, source_sha, notes='', config=None):
+        """Calls and estimated USD for an AI job; 0 when the sheet is already cached."""
+        config = config or self.settings
+        price = self.budget.price(config.image_size, config.quality)
+        if ai_mode == 'panel':
+            return {'calls': len(panels), 'usd': round(price * len(panels), 4), 'cached': False}
+        if panels:
+            tpl = self.templates.load(name)
+            planned = ai_sheet.plan([(n, tuple(tpl.panel(n).size)) for n in panels], brief, config, source_sha,
+                                    self.style_label(name), notes)
+            if self.ai_cache.get(planned['key']):
+                return {'calls': 0, 'usd': 0.0, 'cached': True}
+        return {'calls': 1, 'usd': round(price, 4), 'cached': False}
+
+    def style_label(self, name):
+        try:
+            import styles
+            folder = getattr(self.templates.load(name), 'dir', None)
+            data = json.loads((Path(folder) / 'template.json').read_text()) if folder else {}
+            sid = styles.style_of(name, data)
+            return styles.BY_ID[sid]['label'] if sid in styles.BY_ID else ''
+        except (OSError, ValueError, KeyError, TypeError):
+            return ''
 
     def url(self, job_id, path):
         relative = Path(path).resolve().relative_to((self.root / job_id).resolve()).as_posix()
@@ -495,14 +534,39 @@ class Engine:
                 artwork = folder / 'artwork'
                 artwork.mkdir()
                 results = []
+                sheet_mode = job.get('ai_mode') == 'sheet'
+                if sheet_mode:
+                    names = job['panels'] or ai_sheet.pick_weak_panels(
+                        self.get_job(job_id).get('local_quality'),
+                        [p.name for p in tpl.panels if p.name in GENERATION_PANELS and p.source == 'unwrap'])
+                    if not names:
+                        self.log(job_id, 'Local đã thấy đủ các mảnh: không cần gửi AI, không tốn phí.')
+                    else:
+                        self.update(job_id, stage='restore_artwork', panels=names)
+                        made, meta = ai_sheet.run_sheet(
+                            source, artwork, config, openai_api._request,
+                            panel_sizes=[(n, tuple(tpl.panel(n).size)) for n in names], spec=job['design_spec'],
+                            source_sha=job['input_sha256'], cache=self.ai_cache, budget=self.budget, job_id=job_id,
+                            style_label=self.style_label(job['template']), notes=job['design_notes'],
+                            log=lambda m: self.log(job_id, m))
+                        self.update(job_id, ai_sheet=meta, estimated_image_cost_usd=0 if meta['cache_hit'] else meta['estimated_usd'])
+                    job = self.get_job(job_id)
                 for name in job["panels"]:
                     self.update(job_id, stage='restore_artwork')
-                    self.log(job_id, f"OpenAI phục hồi artwork {name} từ mockup gốc; một yêu cầu có phí, không tự thử lại.")
+                    if not sheet_mode:
+                        self.log(job_id, f"OpenAI phục hồi artwork {name} từ mockup gốc; một yêu cầu có phí, không tự thử lại.")
                     target = edited / (name + ".png")
                     master = artwork / (name + '.png')
-                    result = reconstruct_artwork(source, master, config, panel=name,
-                                                 canvas_size=tuple(tpl.panel(name).size), notes=job['design_notes'],
-                                                 design_spec=job['design_spec'])
+                    if sheet_mode:
+                        result = {'panel': name, 'workflow': 'sheet', 'cache_hit': job['ai_sheet']['cache_hit']}
+                    else:
+                        usd = self.budget.price(config.image_size, config.quality)
+                        self.budget.check(usd)
+                        result = reconstruct_artwork(source, master, config, panel=name,
+                                                     canvas_size=tuple(tpl.panel(name).size), notes=job['design_notes'],
+                                                     design_spec=job['design_spec'])
+                        self.budget.record({'job': job_id, 'usd': usd, 'ok': True, 'panels': [name],
+                                            'prompt_version': 'panel-v2', 'usage': result.get('usage', {})})
                     self.add_artifact(job_id, master, 'image', name + ' — artwork 2D gốc, chưa duyệt.png')
                     upscale = None
                     if job['use_model']:
@@ -521,9 +585,10 @@ class Engine:
                     next(p for p in previews if p["panel"] == name)["openai_url"] = self.url(job_id, thumb)
                     self.update(job_id, previews=previews, api_results=results)
                     self.add_artifact(job_id, target, "image", name + " OpenAI — nền chờ chữ/logo.png")
-                ai_zip = folder / "openai.zip"
-                self.make_archive(tpl, local, ai_zip, edited, job["panels"])
-                self.add_artifact(job_id, ai_zip, "zip", "Bộ OpenAI — cần duyệt.zip")
+                if job["panels"]:
+                    ai_zip = folder / "openai.zip"
+                    self.make_archive(tpl, local, ai_zip, edited, job["panels"])
+                    self.add_artifact(job_id, ai_zip, "zip", "Bộ OpenAI — cần duyệt.zip")
                 self.log(job_id, "Đã ghép artwork lên canvas khuôn cố định. Thêm chữ/logo riêng, duyệt từng mảnh và xem lại trên áo trước khi xuất bộ đã duyệt.")
             self.add_artifact(job_id, folder / "report.json", "json", "Báo cáo.json")
             self.log(job_id, 'Xử lý xong — chưa xác nhận chất lượng in. Bản local và OpenAI đều cần duyệt thủ công.')
@@ -647,6 +712,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, v2.list(kind if kind in ("2d", "3d") else None))
         elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}", path):
             self.send_json(200, v2.get(path.rsplit("/", 1)[1]))
+        elif path == "/api/v2/ai-budget":
+            self.send_json(200, v2.ai_budget())
         elif path == "/api/v2/styles":
             self.send_json(200, v2.styles())
         elif re.fullmatch(r"/api/v2/templates/[a-z][a-z0-9_-]{0,63}/preview", path):
@@ -702,6 +769,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, self.server.v2.inspect(data))
             elif self.path == "/api/v2/jobs":
                 self.send_json(202, self.server.v2.submit(data))
+            elif self.path == "/api/v2/ai-estimate":
+                self.send_json(200, self.server.v2.ai_estimate(data))
+            elif self.path == "/api/v2/ai-budget":
+                self.send_json(200, self.server.v2.ai_budget(data))
             elif self.path == "/api/v2/detect-style":
                 self.send_json(200, self.server.v2.detect_style(data))
             elif self.path == "/api/v2/templates":

@@ -73,6 +73,30 @@ class StudioV2:
             raise FileNotFoundError()
         return path
 
+    # ---- AI cost (3D) ----------------------------------------------------
+    def ai_estimate(self, data):
+        data = data or {}
+        name = data.get('template')
+        if name not in self.engine.templates.available():
+            raise ValueError('Hãy chọn khuôn có sẵn.')
+        mode = data.get('ai_mode', 'sheet')
+        panels = data.get('panels', [])
+        panels = [] if panels == 'auto' else panels
+        if mode not in ('sheet', 'panel') or not isinstance(panels, list) or not all(isinstance(p, str) for p in panels):
+            raise ValueError('Tuỳ chọn AI không hợp lệ.')
+        tpl_panels = {p.name for p in self.engine.templates.load(name).panels}
+        if not set(panels) <= tpl_panels:
+            raise ValueError('Mảnh không có trong khuôn.')
+        source = self._cached(data.get('source_id'))
+        brief = self.engine.design_plan({'template': name, 'design_notes': data.get('design_notes', '')})['spec']
+        estimate = self.engine.ai_estimate(name, panels, mode, brief, hashlib.sha256(source.read_bytes()).hexdigest(),
+                                           data.get('design_notes', ''))
+        return {**estimate, 'budget': self.engine.budget.status(),
+                'key_configured': bool(self.engine.settings.api_key)}
+
+    def ai_budget(self, data=None):
+        return self.engine.budget.update(data) if data else self.engine.budget.status()
+
     # ---- sources -------------------------------------------------------
     def _cached(self, sha):
         if not SHA.fullmatch(sha or ''):

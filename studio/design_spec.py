@@ -13,8 +13,8 @@ import json
 import math
 import re
 
-PANELS = ("Front", "Back", "Sleeve", "Collar", "Hem", "Wrist", "Hood", "Left", "Right")
-GENERATION_PANELS = ("Front", "Back", "Sleeve", "Hood", "Left", "Right")
+PANELS = ("Front", "Back", "Sleeve", "Collar", "Hem", "Wrist", "Hood", "Left", "Right", "FrontLeft", "FrontRight")
+GENERATION_PANELS = ("Front", "Back", "Sleeve", "Hood", "Left", "Right", "FrontLeft", "FrontRight")
 FIELDS = ("palette", "motifs", "bands", "text_layers", "unknowns")
 MAX_PIXELS = 50_000_000
 

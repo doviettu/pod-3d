@@ -152,6 +152,47 @@ class StudioTests(unittest.TestCase):
             self.assertEqual(set(archive.namelist()), {"Front.png", "Back.png"})
         self.assertNotIn(key, (folder / "report.json").read_text())
 
+    def test_openai_sheet_is_one_request_and_cached_on_rerun(self):
+        self.settings.update(api_key="sk-private-key-for-test")
+        calls = []
+
+        def request(settings, payload):
+            calls.append(payload)
+            edge = int(payload['size'].split('x')[0])
+            sheet = Image.new("RGB", (edge, edge), "blue")
+            stream = io.BytesIO()
+            sheet.save(stream, "PNG")
+            return {'data': [{'b64_json': base64.b64encode(stream.getvalue()).decode()}]}
+        ask = {**self.request, "openai": True, "ai_mode": "sheet", "panels": ["Front", "Back"]}
+        with patch("openai_api._request", side_effect=request), patch("studio.reconstruct_artwork") as per_panel:
+            job = self.finish(ask)
+            self.engine.executor = studio.ThreadPoolExecutor(max_workers=1)
+            again = self.finish(ask)
+        per_panel.assert_not_called()
+        self.assertEqual(len(calls), 1)
+        self.assertEqual((job["status"], again["status"]), ("succeeded", "succeeded"))
+        self.assertEqual(job["ai_sheet"]["paid_calls"], 1)
+        self.assertEqual(again["ai_sheet"]["paid_calls"], 0)
+        with Image.open(self.engine.root / again["id"] / "openai" / "Back.png") as back:
+            self.assertEqual((back.size, back.getpixel((0, 0))), ((20, 24), (0, 0, 255)))
+        estimate = self.engine.ai_estimate("sweater", ["Front", "Back"], "sheet", job["design_spec"], job["input_sha256"])
+        self.assertEqual(estimate["usd"], 0)
+
+    def test_openai_sheet_respects_the_budget(self):
+        self.settings.update(api_key="sk-private-key-for-test")
+        self.engine.budget.update({"daily_usd": 0})
+        with patch("openai_api._request") as network, self.assertRaises(ValueError):
+            self.engine.submit({**self.request, "openai": True, "ai_mode": "sheet", "panels": ["Front"]})
+        network.assert_not_called()
+
+    def test_openai_sheet_auto_skips_when_local_saw_everything(self):
+        self.settings.update(api_key="sk-private-key-for-test")
+        with patch("openai_api._request") as network:
+            job = self.finish({**self.request, "openai": True, "ai_mode": "sheet", "panels": "auto"})
+        network.assert_not_called()
+        self.assertEqual(job["status"], "succeeded")
+        self.assertEqual(job["panels"], [])
+
     def test_openai_failure_keeps_local_and_does_not_retry(self):
         key = "sk-private-key-for-test"
         self.settings.update(api_key=key)
