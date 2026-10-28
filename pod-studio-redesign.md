@@ -103,17 +103,43 @@ Prompt không viết tay mỗi lần mà **ghép từ khuôn**, để giống h�
 POD Studio/
 ├─ 2D/2026-10/<SKU>/  source.jpg · front.png · back.png · *.svg · preview.jpg
 ├─ 3D/2026-10/<SKU>/  source.jpg · panels/*.png · panels.zip · preview.jpg
+├─ ⚠ Bản quyền/      job bị gắn Đỏ
 ├─ Thư viện kiểu dáng/
 └─ POD Quản lý (Sheet)
 ```
 
 Sheet tự tạo các tab:
-- **Jobs**: SKU, ngày, loại 2D/3D, mặt in (trước/sau/cả 2), chế độ, link nguồn, kiểu dáng, trạng thái, ảnh nhỏ `=IMAGE()`, link thư mục, chi phí AI, ghi chú, quyền sử dụng.
+- **Jobs**: SKU, ngày, loại 2D/3D, mặt in (trước/sau/cả 2), chế độ, link nguồn, kiểu dáng, trạng thái, ảnh nhỏ `=IMAGE()`, link thư mục, chi phí AI, bản quyền (Xanh/Vàng/Đỏ) + lý do, ghi chú.
 - **Kiểu dáng**: danh sách thư viện và kích thước mảnh.
+- **Bản quyền**: danh sách từ khoá thương hiệu + danh sách đen (hash art đã gắn Đỏ).
 - **Prompt**: phiên bản prompt, số lần dùng, điểm chất lượng trung bình, chi phí trung bình.
 - **Cài đặt**: quy tắc đặt SKU, lề an toàn, trần ngân sách AI.
 
 SQLite vẫn là gốc; Sheet là bản sao để xem và lọc. Đồng bộ chạy khi bấm Duyệt, lỗi mạng thì xếp hàng thử lại.
+
+## Kiểm tra bản quyền
+
+Chạy tự động cho mọi job, ngay sau bước tìm vùng art, trước khi tốn công phóng to hay gọi AI tạo ảnh.
+
+**Các lớp kiểm tra** (rẻ trước, đắt sau):
+1. **Danh sách đen nội bộ**: hash cảm quan (pHash) của các art đã bị đánh dấu đỏ. Trùng thì gắn đỏ ngay, không tốn gì.
+2. **Đọc chữ trên art** (OCR local, ví dụ PaddleOCR/Tesseract), so với danh sách từ khoá thương hiệu: Disney, Marvel, NFL, NBA, Pokémon, tên phim, ca sĩ… Danh sách nằm trong tab **Bản quyền** của Sheet, bạn tự thêm.
+3. **AI nhận diện**: gộp luôn vào lệnh đọc ảnh lập bản mô tả thiết kế (không thêm lệnh). Hỏi thêm: có logo, nhân vật, người nổi tiếng, thương hiệu, câu khẩu hiệu nổi tiếng không, là gì. Ở chế độ Local không bật AI thì bỏ qua lớp này.
+4. **Tra ngược ảnh**: nút mở Google Lens / TinEye với ảnh art để bạn xem nguồn gốc (miễn phí, bấm tay).
+5. **Nhãn hiệu chữ**: với art chủ yếu là chữ, nút mở tra cứu USPTO cho câu chữ đó.
+
+**Đánh dấu**
+
+| Mức | Khi nào | Tool làm gì |
+| --- | --- | --- |
+| 🟢 Xanh | Không thấy dấu hiệu, hoặc bạn xác nhận art tự thiết kế / đã mua quyền | Xử lý và xuất bình thường |
+| 🟡 Vàng | Có từ khoá hoặc hình nghi ngờ | Vẫn xử lý; nút Duyệt yêu cầu bạn chọn Xanh hoặc Đỏ kèm lý do |
+| 🔴 Đỏ | Trùng danh sách đen, hoặc thương hiệu/nhân vật rõ ràng | Huy hiệu đỏ trên thẻ kết quả, file xuất có hậu tố `_IP`, lưu vào thư mục Drive riêng `⚠ Bản quyền/`, không đồng bộ sang mục sẵn bán. Muốn xuất vẫn được nhưng phải bấm xác nhận |
+
+- Mỗi job lưu bằng chứng: chữ đọc được, tên thương hiệu AI thấy, ảnh trùng, người đổi mức và lý do.
+- Sheet thêm cột **Bản quyền** (màu theo mức) + **Lý do**, và tab **Bản quyền** chứa danh sách từ khoá + danh sách đen.
+- Bạn đổi mức bằng tay bất cứ lúc nào. Art đổi sang Đỏ được thêm hash vào danh sách đen để lần sau tự bắt.
+- Đây là bộ lọc hỗ trợ, không phải ý kiến pháp lý: Xanh nghĩa là "chưa thấy dấu hiệu", không đảm bảo an toàn.
 
 ## Việc cần làm
 
@@ -125,9 +151,10 @@ SQLite vẫn là gốc; Sheet là bản sao để xem và lọc. Đồng bộ ch
 - [ ] 6. Thư viện kiểu dáng + nhận dáng tự động → Verify: ảnh sweater/hoodie mẫu được nhận đúng kiểu, ảnh lạ hỏi chọn tay.
 - [ ] 7. Nối 3D Local và 3D AI vào luồng mới (khuôn prompt, cache, sheet 1 lệnh, trần ngân sách) → Verify: mockup Home Alone ra đủ 6 mảnh theo cả 2 chế độ; chạy AI lần 2 cùng ảnh không phát sinh lệnh mới.
 - [ ] 8. Google Drive + Sheet (OAuth, tạo cây thư mục, ghi dòng) → Verify: duyệt 1 job thì thấy thư mục và dòng mới trong Sheet.
+- [ ] 8b. Kiểm tra bản quyền (pHash, OCR + từ khoá, gộp vào lệnh AI mô tả, nhãn Xanh/Vàng/Đỏ, thư mục và cột Sheet) → Verify: mockup Home Alone bị gắn Đỏ (Disney/Fox); một art chữ tự viết ra Xanh; đổi một job sang Đỏ thì ảnh trùng lần sau tự Đỏ.
 - [ ] 9. Kiểm tra tổng: chạy 3 job 2D + 2 job 3D từ đầu tới Drive → Verify: Sheet có 5 dòng, mọi link mở được.
 
-Thứ tự: 1 → 2 → (3, 5 song song) → 4 → 6 → 7 → 8 → 9. Mỗi bước là một PR nhỏ.
+Thứ tự: 1 → 2 → (3, 5 song song) → 4 → 6 → 7 → 8 → 8b → 9. Mỗi bước là một PR nhỏ.
 
 ## Đã chốt (28/10)
 
@@ -144,4 +171,4 @@ Thứ tự: 1 → 2 → (3, 5 song song) → 4 → 6 → 7 → 8 → 9. Mỗi b�
 - **Mockup bán hàng**: sau khi có art, tự đặt lên áo trơn để có ảnh đăng bán.
 - **Tiêu đề, tag**: sinh sẵn cho listing, ghi vào Sheet.
 - **Điểm chất lượng**: độ phân giải gốc thấp (dưới 1000 px) thì cảnh báo sớm, khỏi tốn thời gian.
-- **Rủi ro bản quyền**: art lấy trên mạng thường có chủ; in bán có thể bị gỡ shop hoặc kiện (Disney, Fox, Capcom rất hay đánh). Sheet có cột "quyền sử dụng" và tool cảnh báo khi thấy logo/nhân vật nổi tiếng. Tool không xóa watermark.
+- **Rủi ro bản quyền**: đã chốt thành mục "Kiểm tra bản quyền" ở trên. Tool không xóa watermark.
