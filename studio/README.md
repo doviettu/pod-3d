@@ -44,8 +44,9 @@ Không cần mở Terminal mỗi lần: cài một lần, POD Studio tự chạy
 1. Bấm đúp `studio/setup-mail.command` (tuỳ chọn): nhập Gmail gửi đi, [mật khẩu ứng dụng Google](https://myaccount.google.com/apppasswords) (cần bật xác minh 2 bước) và email nhận. Tool gửi một mail thử. Cài đặt lưu ở `~/.config/pod-studio/mail.json` (quyền 600), không nằm trong repo.
 2. Tắt cửa sổ POD Studio đang chạy bằng tay (Control+C), rồi bấm đúp `studio/install-service.command`. Lệnh này cài 2 dịch vụ launchd: `com.podstudio.server` (ứng dụng) và `com.podstudio.online` (đường truyền HTTPS + đăng nhập; cần `caddy`, `cloudflared`). Chỉ muốn chạy local: `.venv/bin/python studio/service.py install --no-online`.
 3. Mỗi lần đường truyền có link mới (khởi động lại, mất mạng, Mac khởi động), tool gửi mail gồm link, tài khoản `studio` và mật khẩu. Không đổi link thì không gửi lại.
-4. Sau `git pull`: bấm đúp `studio/restart.command`.
-5. Xem trạng thái: `.venv/bin/python studio/service.py status`; log ở `studio/runtime/logs/`. Gỡ: `.venv/bin/python studio/service.py uninstall`.
+4. Lệnh cài cũng tạo app **POD Studio** có icon ở `~/Applications/POD Studio.app`: kéo vào Dock hoặc Desktop, bấm là mở trang (tự bật dịch vụ nếu đang tắt). Tạo lại app: `.venv/bin/python studio/service.py app`.
+5. Sau `git pull`: bấm đúp `studio/restart.command`.
+6. Xem trạng thái: `.venv/bin/python studio/service.py status`; log ở `studio/runtime/logs/`. Gỡ: `.venv/bin/python studio/service.py uninstall`.
 
 Để chạy cả khi mất điện: System Settings → Users & Groups → bật tự đăng nhập; Energy → bật "Start up automatically after a power failure" và chặn Mac ngủ. Dịch vụ launchd chỉ chạy khi tài khoản đã đăng nhập.
 

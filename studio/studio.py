@@ -46,7 +46,8 @@ MAX_PIXELS = 50_000_000
 JOB_ID = re.compile(r"[a-f0-9]{32}")
 STATIC = {"/app.js": ("app.js", "text/javascript; charset=utf-8"),
           "/app.css": ("app.css", "text/css; charset=utf-8"),
-          "/vendor/openseadragon.min.js": ("openseadragon.min.js", "text/javascript; charset=utf-8")}
+          "/vendor/openseadragon.min.js": ("openseadragon.min.js", "text/javascript; charset=utf-8"),
+          "/app-icon.png": ("app-icon.png", "image/png")}
 
 
 def now():

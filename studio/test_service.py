@@ -99,6 +99,19 @@ class ServiceTests(unittest.TestCase):
             self.assertTrue(data['StandardOutPath'].endswith(f'{name}.log'))
         self.assertNotEqual(service.plist('server')['Label'], service.plist('online')['Label'])
 
+    def test_launcher_app_bundle(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            app = service.make_app(Path(tmp) / 'POD Studio.app')
+            info = plistlib.loads((app / 'Contents' / 'Info.plist').read_bytes())
+            script = app / 'Contents' / 'MacOS' / info['CFBundleExecutable']
+            self.assertTrue(os.access(script, os.X_OK))
+            text = script.read_text()
+            self.assertIn('kickstart gui/$UID/$label', text)
+            self.assertIn("/usr/bin/open http://127.0.0.1:8765", text)
+            self.assertTrue((app / 'Contents' / 'Resources' / 'AppIcon.icns').stat().st_size > 10000)
+            service.make_app(app)   # rebuilding replaces the old bundle
+            self.assertTrue(script.is_file())
+
 
 if __name__ == '__main__':
     unittest.main()
