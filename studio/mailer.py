@@ -81,24 +81,43 @@ def online_message(cfg, url, password, reason=''):
     return msg
 
 
-def send(cfg, msg, smtp=None, timeout=30):
-    """smtp: injectable factory for tests; default is SMTP over SSL (465) or STARTTLS (587)."""
+def _send_once(cfg, msg, port, smtp, timeout):
     context = ssl.create_default_context()
+    if smtp:
+        server = smtp(cfg['smtp_host'], port)
+    elif port == 465:
+        server = smtplib.SMTP_SSL(cfg['smtp_host'], 465, timeout=timeout, context=context)
+    else:
+        server = smtplib.SMTP(cfg['smtp_host'], port, timeout=timeout)
+        server.ehlo()
+        server.starttls(context=context)
+        server.ehlo()
+    with server:
+        server.login(cfg['user'], cfg['app_password'].replace(' ', ''))
+        server.send_message(msg)
+
+
+def send(cfg, msg, smtp=None, timeout=30):
+    """SMTP over SSL (465), falling back to STARTTLS (587) when a network blocks one of them.
+    smtp: injectable factory for tests. Returns the port that worked."""
+    first = int(cfg['port'])
+    errors = []
+    for port in (first, 587 if first == 465 else 465):
+        try:
+            _send_once(cfg, msg, port, smtp, timeout)
+            return port
+        except smtplib.SMTPAuthenticationError:
+            raise MailError('Gmail từ chối đăng nhập: kiểm tra email và mật khẩu ứng dụng (không phải mật khẩu Gmail).') from None
+        except (smtplib.SMTPException, OSError, socket.timeout) as exc:
+            errors.append(f'cổng {port}: {exc or type(exc).__name__}')
+    raise MailError('Không gửi được mail (' + '; '.join(errors) + '). Kiểm tra mạng, VPN hoặc tường lửa trên Mac.')
+
+
+def sent(url, state_path):
     try:
-        if smtp:
-            server = smtp(cfg['smtp_host'], cfg['port'])
-        elif int(cfg['port']) == 465:
-            server = smtplib.SMTP_SSL(cfg['smtp_host'], 465, timeout=timeout, context=context)
-        else:
-            server = smtplib.SMTP(cfg['smtp_host'], int(cfg['port']), timeout=timeout)
-            server.starttls(context=context)
-        with server:
-            server.login(cfg['user'], cfg['app_password'].replace(' ', ''))
-            server.send_message(msg)
-    except smtplib.SMTPAuthenticationError:
-        raise MailError('Gmail từ chối đăng nhập: kiểm tra email và mật khẩu ứng dụng (không phải mật khẩu Gmail).') from None
-    except (smtplib.SMTPException, OSError, socket.timeout) as exc:
-        raise MailError(f'Không gửi được mail: {exc}') from None
+        return json.loads(Path(state_path).read_text()).get('url') == url
+    except (OSError, ValueError):
+        return False
 
 
 def notify_online(url, password, state_path, *, config=None, smtp=None, log=print):
@@ -152,8 +171,8 @@ def main(argv):
             cfg = load()
             if not cfg:
                 raise MailError('Chưa cài: chạy "mailer.py setup" trước.')
-            send(cfg, online_message(cfg, 'https://vi-du.trycloudflare.com', '(ẩn)', 'Đây là mail thử.'))
-            print('Đã gửi mail thử.')
+            port = send(cfg, online_message(cfg, 'https://vi-du.trycloudflare.com', '(ẩn)', 'Đây là mail thử.'))
+            print(f'Đã gửi mail thử tới {", ".join(cfg["to"])} (cổng {port}).')
         else:
             print(__doc__)
             return 2

@@ -189,9 +189,15 @@ def main():
         state_file.write_text(json.dumps(state, ensure_ascii=False, indent=2))
         print(json.dumps(state, ensure_ascii=False), flush=True)
         # Mail the new link (and login) when it changed; a mail problem never stops the tunnel.
-        mailer.notify_online(state['url'], password, ROOT / 'mail-state.json',
-                             log=lambda m: print(m, flush=True))
+        mail_ok = mailer.notify_online(state['url'], password, ROOT / 'mail-state.json',
+                                       log=lambda m: print(m, flush=True))
+        next_mail = time.monotonic() + 300
         while all(child.poll() is None for child in children):
+            # A failed mail (network, Gmail) is tried again every 5 minutes while this link lives.
+            if not mail_ok and time.monotonic() > next_mail:
+                mail_ok = mailer.notify_online(state['url'], password, ROOT / 'mail-state.json',
+                                               log=lambda m: print(m, flush=True)) or mailer.sent(state['url'], ROOT / 'mail-state.json')
+                next_mail = time.monotonic() + 300
             time.sleep(2)
         raise RuntimeError('Đường truyền online đã dừng; mở lại để lấy URL mới.')
     except KeyboardInterrupt:

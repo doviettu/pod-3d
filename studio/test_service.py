@@ -75,6 +75,15 @@ class MailTests(unittest.TestCase):
         self.assertFalse(mailer.notify_online('https://y.trycloudflare.com', 'pw', self.root / 's2.json',
                                               config=self.root / 'none.json', smtp=FakeSMTP, log=lambda m: None))
 
+    def test_falls_back_to_port_587_when_465_is_blocked(self):
+        class Blocked465(FakeSMTP):
+            def __init__(self, host, port):
+                if port == 465:
+                    raise OSError('Connection unexpectedly closed')
+                super().__init__(host, port)
+        self.assertEqual(mailer.send(CFG, mailer.online_message(CFG, 'https://a.trycloudflare.com', 'pw'), Blocked465), 587)
+        self.assertEqual(len(FakeSMTP.sent), 1)
+
     def test_mail_failure_is_logged_not_raised(self):
         class Broken(FakeSMTP):
             def login(self, user, password):
