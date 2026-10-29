@@ -16,6 +16,7 @@
     <button role="tab" data-tab="3d" aria-selected="false">3D · In tràn</button>
     <button role="tab" data-tab="library" aria-selected="false">Thư viện kiểu dáng</button>
     <button role="tab" data-tab="history" aria-selected="false">Lịch sử</button>
+    <button role="tab" data-tab="claude" aria-selected="false">Hỏi Claude</button>
   </nav>
   <a class="legacy" href="/legacy">Công cụ duyệt chi tiết</a>
 </header>
@@ -132,6 +133,19 @@
       </label>
       <button id="rights-save">Lưu từ khoá</button>
     </details>
+  </section>
+
+  <!-- Ask Claude -->
+  <section id="tab-claude" class="tab" hidden>
+    <div class="panel chat-panel">
+      <div class="row"><h2>Hỏi Claude</h2><button id="chat-new">Cuộc trò chuyện mới</button></div>
+      <p class="muted" id="chat-info">Claude Code chạy trên Mac mini, đọc được repo và dữ liệu Studio nhưng không chạy lệnh, không sửa file.</p>
+      <div id="chat-log" class="chat-log" aria-live="polite"></div>
+      <form id="chat-form" class="chat-form">
+        <textarea id="chat-prompt" rows="3" maxlength="8000" placeholder="Ví dụ: job 3D gần nhất bị lỗi gì?  (Enter để gửi, Shift+Enter xuống dòng)"></textarea>
+        <button class="primary" id="chat-send" type="submit">Gửi</button>
+      </form>
+    </div>
   </section>
 </main>
 

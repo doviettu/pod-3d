@@ -119,3 +119,14 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 
 .google-panel ol.steps { padding-left: 1.2em; line-height: 1.5; }
 .google-panel textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }
+
+/* Ask Claude */
+.chat-panel { display: grid; gap: 10px; }
+.chat-log { display: grid; gap: 10px; max-height: 60vh; overflow-y: auto; }
+.chat-log:empty { display: none; }
+.msg { padding: 10px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+.msg.user { background: color-mix(in srgb, var(--accent) 12%, transparent); justify-self: end; max-width: 85%; }
+.msg.claude { background: var(--bg); border: 1px solid var(--line); }
+.msg.error { color: var(--bad); }
+.msg .tools { color: var(--muted); font-size: 12px; margin-bottom: 6px; white-space: normal; }
+.chat-form textarea { width: 100%; font: inherit; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--card); color: var(--text); resize: vertical; }

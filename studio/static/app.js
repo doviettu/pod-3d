@@ -55,6 +55,7 @@ $$('.tabs button').forEach(button => button.addEventListener('click', () => {
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b === button)));
   $$('.tab').forEach(t => { t.hidden = t.id !== `tab-${button.dataset.tab}`; });
   if (button.dataset.tab === 'history') { loadHistory(); loadRights(); loadGoogle(); }
+  if (button.dataset.tab === 'claude') loadClaude();
 }));
 
 // ---------- adding sources ----------
@@ -833,3 +834,101 @@ document.addEventListener('keydown', event => {
 });
 
 loadTemplates();
+
+// ---------- ask Claude ----------
+const chat = { session: null, busy: false };
+
+async function loadClaude() {
+  try {
+    const status = await api('/api/claude/status');
+    if (!status.available) $('#chat-info').textContent = status.message;
+    $('#chat-send').disabled = !status.available;
+  } catch (err) { $('#chat-info').textContent = err.message; }
+  $('#chat-prompt').focus();
+}
+
+function chatBubble(kind, text = '') {
+  const bubble = el('div', { class: `msg ${kind}` }, text);
+  $('#chat-log').append(bubble);
+  bubble.scrollIntoView({ block: 'end' });
+  return bubble;
+}
+
+async function sendChat(prompt) {
+  chat.busy = true;
+  $('#chat-send').disabled = true;
+  chatBubble('user', prompt);
+  const bubble = chatBubble('claude');
+  const tools = el('div', { class: 'tools' }, 'Claude đang đọc câu hỏi…');
+  const body = el('span');
+  bubble.append(tools, body);
+  try {
+    const response = await fetch('/api/claude/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, session: chat.session }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Lỗi ${response.status}`);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finished = false;
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut;
+      while ((cut = buffer.indexOf('\n\n')) >= 0) {
+        const line = buffer.slice(0, cut);
+        buffer = buffer.slice(cut + 2);
+        if (!line.startsWith('data: ')) continue;
+        const event = JSON.parse(line.slice(6));
+        if (event.type === 'text') {
+          body.textContent += event.text;
+          tools.textContent = tools.dataset.used || '';
+        } else if (event.type === 'tool') {
+          tools.dataset.used = `${tools.dataset.used ? tools.dataset.used + ' · ' : 'Đã xem: '}${event.detail || event.name}`;
+          tools.textContent = tools.dataset.used;
+        } else if (event.type === 'done') {
+          finished = true;
+          chat.session = event.session || chat.session;
+          tools.textContent = `${tools.dataset.used ? tools.dataset.used + ' · ' : ''}${event.seconds}s`;
+        } else if (event.type === 'error') {
+          finished = true;
+          chat.session = event.session || chat.session;
+          throw new Error(event.error);
+        }
+        bubble.scrollIntoView({ block: 'end' });
+      }
+    }
+    if (!finished) throw new Error('Mất kết nối trước khi Claude trả lời xong.');
+  } catch (err) {
+    bubble.classList.add('error');
+    body.textContent += (body.textContent ? '\n\n' : '') + err.message;
+    tools.textContent = tools.dataset.used || '';
+  } finally {
+    chat.busy = false;
+    $('#chat-send').disabled = false;
+  }
+}
+
+$('#chat-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const prompt = $('#chat-prompt').value.trim();
+  if (!prompt || chat.busy) return;
+  $('#chat-prompt').value = '';
+  sendChat(prompt);
+});
+$('#chat-prompt').addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    $('#chat-form').requestSubmit();
+  }
+});
+$('#chat-new').addEventListener('click', () => {
+  chat.session = null;
+  $('#chat-log').replaceChildren();
+  $('#chat-prompt').focus();
+});

@@ -90,6 +90,23 @@ kết quả ở `runtime/online/form-verification.json`. Kiểm tra tải PSD 42
 có SHA-256 khớp bản gốc, lưu ở `runtime/online/verification.json`.
 Không gọi tạo ảnh trả phí trong các kiểm tra này.
 
+## Hỏi Claude (tab trên trang v2)
+
+Tab **Hỏi Claude** gửi câu hỏi tới Claude Code chạy trên chính Mac mini (`claude -p`) và hiện câu trả lời dần dần trên trang, cả khi mở qua link online (đã qua bước đăng nhập).
+
+Cài một lần trên Mac:
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash   # cài Claude Code
+claude                                           # đăng nhập bằng tài khoản Claude Pro/Max, rồi /exit
+```
+
+Sau đó chạy `restart.command` để Studio nhận đường dẫn mới.
+
+- Chi phí: Studio xoá `ANTHROPIC_API_KEY` khỏi môi trường của Claude, nên câu hỏi tính vào hạn mức gói Claude đang đăng nhập, không phát sinh tiền API.
+- Quyền: Claude chỉ được đọc và tìm file trong repo (Read, Grep, Glob). Bash, sửa/ghi file, Web và subagent đều bị chặn.
+- Mỗi lần chỉ một câu hỏi; tối đa 8000 ký tự, 10 phút. Nút **Cuộc trò chuyện mới** bỏ ngữ cảnh cũ, còn không thì Claude nhớ các câu trước (`--resume`).
+
 ## Mẫu sản phẩm và nhận diện tự động
 
 Các bố cục mới trong thư mục `templates/` của ứng dụng, tách khỏi template gốc của engine:
