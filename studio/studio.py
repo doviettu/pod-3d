@@ -37,7 +37,7 @@ from product_templates import ProductTemplates
 from template_detection import detect_template
 from market_library import load_market_library
 from v2 import StudioV2
-from claude_chat import ClaudeChat
+from claude_chat import ClaudeChat, FILE_TYPES as CLAUDE_FILE_TYPES, INLINE as CLAUDE_INLINE
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_ENGINE = HERE.parent if (HERE.parent / "pod3d").is_dir() else Path.home() / "pod-3d"
@@ -678,7 +678,12 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/hoodie-library":
                 self.send_json(200, load_market_library())
             elif path == "/api/claude/status":
-                self.send_json(200, self.server.claude.status())
+                self.send_json(200, self.server.claude.status(online=is_online(self)))
+            elif path.startswith("/claude-files/"):
+                parts = path.split("/", 3)
+                if len(parts) != 4:
+                    raise FileNotFoundError()
+                self.send_claude_file(self.server.claude.file_path(parts[2], unquote(parts[3])))
             elif path == "/api/status":
                 self.send_json(200, {**engine.status(), 'online_access': is_online(self)})
             elif path == "/api/jobs":
@@ -773,9 +778,23 @@ class Handler(BaseHTTPRequestHandler):
             while block := stream.read(1024 * 1024):
                 self.wfile.write(block)
 
+    def send_claude_file(self, target):
+        suffix = target.suffix.lower()
+        self.send_response(200)
+        self.send_header("Content-Type", CLAUDE_FILE_TYPES[suffix])
+        self.send_header("Content-Length", str(target.stat().st_size))
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Cache-Control", "private, max-age=3600")
+        if suffix not in CLAUDE_INLINE or "download" in parse_qs(urlsplit(self.path).query):
+            self.send_header("Content-Disposition", f'attachment; filename="{quote(target.name)}"')
+        self.end_headers()
+        with target.open("rb") as stream:
+            while block := stream.read(1024 * 1024):
+                self.wfile.write(block)
+
     def claude_chat(self, data):
         """Stream Claude Code's answer as server-sent events (one JSON object per `data:` line)."""
-        events = self.server.claude.ask(data)
+        events = self.server.claude.ask(data, online=is_online(self))
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -802,7 +821,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(415, {"error": "Yêu cầu phải có định dạng JSON."})
             return
         length = self.headers.get("Content-Length", "")
-        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review', self.path) else 128 * 1024 if self.path in ('/api/design-plan', '/api/v2/rights-config', '/api/claude/chat') else 16 * 1024
+        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template', '/api/claude/chat') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review', self.path) else 128 * 1024 if self.path in ('/api/design-plan', '/api/v2/rights-config') else 16 * 1024
         if not length.isdigit() or len(length) > 9 or not 0 < int(length) <= limit:
             self.send_json(413, {"error": "Dữ liệu quá lớn hoặc thiếu độ dài."})
             return

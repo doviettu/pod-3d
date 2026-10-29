@@ -122,11 +122,11 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None  # Never forward credentials or repeat a paid edit.
 
 
-def _request(settings, payload=None):
+def _request(settings, payload=None, endpoint='images/edits'):
     _validate(settings.model, settings.image_size, settings.quality, settings.api_key)
     if not settings.api_key:
         raise OpenAIError('Chưa cấu hình khóa OpenAI.')
-    path = 'images/edits' if payload is not None else 'models/' + settings.model
+    path = endpoint if payload is not None else 'models/' + settings.model
     request = urllib.request.Request(BASE_URL + path,
         data=None if payload is None else json.dumps(payload).encode(),
         headers={'Authorization': 'Bearer ' + settings.api_key, 'Content-Type': 'application/json'})

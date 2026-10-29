@@ -1,11 +1,16 @@
 """Tests for the "Hỏi Claude" tab: the claude -p wrapper and its streaming HTTP endpoint."""
+import base64
 import http.client
+import os
 import io
 import json
 from pathlib import Path
 import sys
+import tempfile
 import threading
 from types import SimpleNamespace
+
+from PIL import Image
 import unittest
 import unittest.mock
 
@@ -56,30 +61,92 @@ class Recorder:
 
 class ClaudeChatTest(unittest.TestCase):
     def chat(self, recorder):
-        return ClaudeChat(cwd='/tmp', finder=lambda: '/usr/bin/claude', popen=recorder)
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        return ClaudeChat(cwd=self.tmp.name, root=Path(self.tmp.name) / 'runtime',
+                          finder=lambda: '/usr/bin/claude', popen=recorder)
 
     def test_streams_text_tools_and_session(self):
         recorder = Recorder()
         events = list(self.chat(recorder).ask({'prompt': 'chào'}))
-        self.assertEqual([e['type'] for e in events], ['tool', 'text', 'text', 'done'])
+        self.assertEqual([e['type'] for e in events], ['start', 'tool', 'text', 'text', 'done'])
         self.assertEqual(''.join(e['text'] for e in events if e['type'] == 'text'), 'Xin chào')
-        self.assertTrue(events[0]['detail'].endswith('server.log'))
+        self.assertTrue(events[1]['detail'].endswith('server.log'))
         self.assertEqual(events[-1]['session'], SESSION)
-        self.assertEqual(recorder.procs[0].prompt, 'chào')
+        self.assertTrue(recorder.procs[0].prompt.startswith('chào'))
 
     def test_read_only_and_no_api_key(self):
         recorder = Recorder()
         with unittest.mock.patch.dict('os.environ', {'ANTHROPIC_API_KEY': 'sk-ant-secret'}):
-            list(self.chat(recorder).ask({'prompt': 'hi', 'session': SESSION}))
+            list(self.chat(recorder).ask({'prompt': 'hi', 'session': SESSION, 'mode': 'read'}))
         proc = recorder.procs[0]
         allowed = proc.cmd[proc.cmd.index('--allowedTools') + 1:proc.cmd.index('--disallowedTools')]
         self.assertEqual(set(allowed), set(claude_chat.READ_TOOLS))
-        for tool in ('Bash', 'Edit', 'Write', 'WebFetch'):
-            self.assertIn(tool, proc.cmd)
-            self.assertNotIn(tool, allowed)
+        self.assertIn('--restricted', proc.cmd)
+        self.assertEqual(proc.cmd[proc.cmd.index('--tools') + 1], 'Read,Grep,Glob')
         self.assertNotIn('--dangerously-skip-permissions', proc.cmd)
         self.assertEqual(proc.cmd[proc.cmd.index('--resume') + 1], SESSION)
         self.assertNotIn('ANTHROPIC_API_KEY', proc.kwargs['env'])
+        self.assertIn('Read(studio/runtime/online/**)', proc.cmd)
+
+    def test_image_mode_only_allows_studio_tools_and_output_folder(self):
+        recorder = Recorder()
+        chat = self.chat(recorder)
+        list(chat.ask({'prompt': 'tạo ảnh', 'mode': 'image'}, online=True))
+        cmd = recorder.procs[0].cmd
+        allowed = cmd[cmd.index('--allowedTools') + 1:cmd.index('--disallowedTools')]
+        out = recorder.procs[0].kwargs['env']['POD_CLAUDE_OUT']
+        rel = os.path.relpath(out, self.tmp.name)
+        self.assertIn('mcp__studio', allowed)
+        self.assertIn(f'Edit({rel}/**)', allowed)
+        self.assertIn('--restricted', cmd)
+        self.assertNotIn('Bash', ' '.join(cmd))
+        self.assertEqual(cmd[cmd.index('--tools') + 1], 'Read,Grep,Glob,Edit,Write')
+        config = json.loads(cmd[cmd.index('--mcp-config') + 1])
+        self.assertEqual(config['mcpServers']['studio']['env']['POD_CLAUDE_OUT'], out)
+
+    def test_full_mode_only_from_the_mac(self):
+        chat = self.chat(Recorder())
+        with self.assertRaises(ValueError):
+            chat.ask({'prompt': 'rm', 'mode': 'full'}, online=True)
+        self.assertEqual(chat.status(online=True)['modes'], ['read', 'image'])
+        list(chat.ask({'prompt': 'ok', 'mode': 'full'}))
+        with self.assertRaises(ValueError):
+            chat.ask({'prompt': 'x', 'mode': 'root'})
+
+    def test_attachments_saved_outputs_listed_and_log_written(self):
+        png = io.BytesIO()
+        Image.new('RGB', (4, 4), 'red').save(png, format='PNG')
+        recorder = Recorder()
+        chat = self.chat(recorder)
+        real = recorder.__call__
+
+        def popen(cmd, **kwargs):
+            out = Path(kwargs['env']['POD_CLAUDE_OUT'])
+            (out / 'ket-qua.png').write_bytes(png.getvalue())
+            return real(cmd, **kwargs)
+        chat.popen = popen
+        events = list(chat.ask({'prompt': 'xem ảnh', 'mode': 'image',
+                                'attachments': [{'name': '../../evil.png', 'data': base64.b64encode(png.getvalue()).decode()}]}))
+        chat_id = events[0]['chat']
+        saved = list((chat.folder(chat_id) / 'in').iterdir())
+        self.assertEqual(len(saved), 1)
+        self.assertNotIn('..', saved[0].name)
+        self.assertIn(os.path.relpath(saved[0], self.tmp.name), recorder.procs[0].prompt)
+        files = [e for e in events if e['type'] == 'file']
+        self.assertEqual(files, [{'type': 'file', 'name': 'ket-qua.png', 'url': f'/claude-files/{chat_id}/ket-qua.png',
+                                  'image': True, 'bytes': len(png.getvalue())}])
+        self.assertEqual(chat.file_path(chat_id, 'ket-qua.png').name, 'ket-qua.png')
+        for bad in ('../in/' + saved[0].name, '../../logs/claude-chat.jsonl'):
+            with self.assertRaises(FileNotFoundError):
+                chat.file_path(chat_id, bad)
+        with self.assertRaises(ValueError):
+            chat.file_path('../x', 'a.png')
+        log = (Path(self.tmp.name) / 'runtime/logs/claude-chat.jsonl').read_text().splitlines()
+        self.assertEqual(json.loads(log[0])['mode'], 'image')
+        for bad in ([{'data': 'not base64!'}], [{'data': base64.b64encode(b'MZ exe').decode()}], [{}] * 5):
+            with self.assertRaises(ValueError):
+                chat.ask({'prompt': 'a', 'attachments': bad})
 
     def test_rejects_bad_input_and_parallel_questions(self):
         chat = self.chat(Recorder())
@@ -107,7 +174,9 @@ class HttpTest(unittest.TestCase):
     def test_chat_endpoint_streams_events(self):
         server = studio.ThreadingHTTPServer(('127.0.0.1', 0), studio.Handler)
         server.engine = SimpleNamespace(settings=SimpleNamespace(api_key=None))
-        server.claude = ClaudeChat(cwd='/tmp', finder=lambda: '/usr/bin/claude', popen=Recorder())
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        server.claude = ClaudeChat(cwd=tmp.name, root=Path(tmp.name) / 'runtime', finder=lambda: '/usr/bin/claude', popen=Recorder())
         server.online_auth = studio.OnlineAuth(Path('/nonexistent/access.json'))
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()

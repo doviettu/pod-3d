@@ -836,14 +836,22 @@ document.addEventListener('keydown', event => {
 loadTemplates();
 
 // ---------- ask Claude ----------
-const chat = { session: null, busy: false };
+const chat = { session: null, chat: null, busy: false, attachments: [] };
+const MODE_NOTE = {
+  read: 'Claude chỉ đọc file, không chạy lệnh.',
+  image: 'Claude chạy các công cụ ảnh của Studio (tách art, đổi kích thước, ảnh AI có trần ngân sách), không chạy lệnh khác.',
+  full: 'Claude làm được mọi thứ như trong Terminal trên Mac: chạy lệnh, sửa file, cài gói.',
+};
 
 async function loadClaude() {
   try {
     const status = await api('/api/claude/status');
     if (!status.available) $('#chat-info').textContent = status.message;
     $('#chat-send').disabled = !status.available;
+    for (const option of $('#chat-mode').options) option.disabled = !status.modes.includes(option.value);
+    if ($('#chat-mode').selectedOptions[0].disabled) $('#chat-mode').value = 'image';
   } catch (err) { $('#chat-info').textContent = err.message; }
+  $('#chat-mode-note').textContent = MODE_NOTE[$('#chat-mode').value];
   $('#chat-prompt').focus();
 }
 
@@ -854,18 +862,42 @@ function chatBubble(kind, text = '') {
   return bubble;
 }
 
+function renderAttachments() {
+  $('#chat-attachments').replaceChildren(...chat.attachments.map((item, i) =>
+    el('div', { class: 'chat-thumb' }, el('img', { src: item.url, alt: item.name }),
+       el('button', { type: 'button', 'aria-label': 'Bỏ ảnh', onclick: () => {
+         URL.revokeObjectURL(item.url); chat.attachments.splice(i, 1); renderAttachments();
+       } }, '✕'))));
+}
+
+function addAttachments(files) {
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+    if (chat.attachments.length >= 4) { $('#chat-mode-note').textContent = 'Tối đa 4 ảnh mỗi lần.'; break; }
+    if (file.size > 15 * 1024 * 1024) { $('#chat-mode-note').textContent = `${file.name} lớn hơn 15 MB.`; continue; }
+    chat.attachments.push({ file, name: file.name || 'anh-dan.png', url: URL.createObjectURL(file) });
+  }
+  renderAttachments();
+}
+
 async function sendChat(prompt) {
   chat.busy = true;
   $('#chat-send').disabled = true;
-  chatBubble('user', prompt);
+  const mode = $('#chat-mode').value;
+  const sending = chat.attachments.splice(0);
+  renderAttachments();
+  const mine = chatBubble('user', prompt);
+  if (sending.length) mine.append(el('div', { class: 'shots' }, sending.map(a => el('img', { src: a.url, alt: a.name }))));
   const bubble = chatBubble('claude');
   const tools = el('div', { class: 'tools' }, 'Claude đang đọc câu hỏi…');
   const body = el('span');
-  bubble.append(tools, body);
+  const shots = el('div', { class: 'shots' });
+  bubble.append(tools, body, shots);
   try {
+    const attachments = await Promise.all(sending.map(async a => ({ name: a.name, data: await fileToBase64(a.file) })));
     const response = await fetch('/api/claude/chat', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, session: chat.session }),
+      body: JSON.stringify({ prompt, mode, attachments, session: chat.session, chat: chat.chat }),
     });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
@@ -875,6 +907,7 @@ async function sendChat(prompt) {
     const decoder = new TextDecoder();
     let buffer = '';
     let finished = false;
+    const used = [];
     for (;;) {
       const { value, done } = await reader.read();
       if (done) break;
@@ -885,16 +918,22 @@ async function sendChat(prompt) {
         buffer = buffer.slice(cut + 2);
         if (!line.startsWith('data: ')) continue;
         const event = JSON.parse(line.slice(6));
-        if (event.type === 'text') {
+        if (event.type === 'start') {
+          chat.chat = event.chat;
+        } else if (event.type === 'text') {
           body.textContent += event.text;
-          tools.textContent = tools.dataset.used || '';
+          tools.textContent = used.length ? `Đã dùng: ${used.join(' · ')}` : '';
         } else if (event.type === 'tool') {
-          tools.dataset.used = `${tools.dataset.used ? tools.dataset.used + ' · ' : 'Đã xem: '}${event.detail || event.name}`;
-          tools.textContent = tools.dataset.used;
+          used.push(event.detail || event.name);
+          tools.textContent = `Đã dùng: ${used.join(' · ')}`;
+        } else if (event.type === 'file') {
+          shots.append(event.image
+            ? el('img', { src: event.url, alt: event.name, title: event.name, onclick: () => window.open(event.url, '_blank') })
+            : el('a', { href: `${event.url}?download`, download: event.name }, `⬇ ${event.name}`));
         } else if (event.type === 'done') {
           finished = true;
           chat.session = event.session || chat.session;
-          tools.textContent = `${tools.dataset.used ? tools.dataset.used + ' · ' : ''}${event.seconds}s`;
+          tools.textContent = [used.length ? `Đã dùng: ${used.join(' · ')}` : '', `${event.seconds}s`].filter(Boolean).join(' · ');
         } else if (event.type === 'error') {
           finished = true;
           chat.session = event.session || chat.session;
@@ -907,7 +946,6 @@ async function sendChat(prompt) {
   } catch (err) {
     bubble.classList.add('error');
     body.textContent += (body.textContent ? '\n\n' : '') + err.message;
-    tools.textContent = tools.dataset.used || '';
   } finally {
     chat.busy = false;
     $('#chat-send').disabled = false;
@@ -927,8 +965,15 @@ $('#chat-prompt').addEventListener('keydown', event => {
     $('#chat-form').requestSubmit();
   }
 });
+$('#chat-prompt').addEventListener('paste', event => {
+  const files = [...event.clipboardData.files];
+  if (files.length) { event.preventDefault(); addAttachments(files); }
+});
+$('#chat-file').addEventListener('change', event => { addAttachments(event.target.files); event.target.value = ''; });
+$('#chat-mode').addEventListener('change', () => { $('#chat-mode-note').textContent = MODE_NOTE[$('#chat-mode').value]; });
 $('#chat-new').addEventListener('click', () => {
   chat.session = null;
+  chat.chat = null;
   $('#chat-log').replaceChildren();
   $('#chat-prompt').focus();
 });

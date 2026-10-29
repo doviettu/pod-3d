@@ -92,20 +92,28 @@ Không gọi tạo ảnh trả phí trong các kiểm tra này.
 
 ## Hỏi Claude (tab trên trang v2)
 
-Tab **Hỏi Claude** gửi câu hỏi tới Claude Code chạy trên chính Mac mini (`claude -p`) và hiện câu trả lời dần dần trên trang, cả khi mở qua link online (đã qua bước đăng nhập).
+Tab **Hỏi Claude** gửi câu hỏi tới Claude Code chạy trên chính Mac mini (`claude -p`) và hiện câu trả lời dần dần trên trang, cả khi mở qua link online (đã qua bước đăng nhập). Gửi kèm ảnh bằng nút 📎 hoặc dán (Cmd+V); ảnh và file Claude tạo ra hiện ngay trong khung chat.
 
 Cài một lần trên Mac:
 
 ```bash
 curl -fsSL https://claude.ai/install.sh | bash   # cài Claude Code
-claude                                           # đăng nhập bằng tài khoản Claude Pro/Max, rồi /exit
+~/.local/bin/claude                              # gõ /login, chọn tài khoản Claude Pro/Max, rồi /exit
+~/pod-3d/studio/restart.command
 ```
 
-Sau đó chạy `restart.command` để Studio nhận đường dẫn mới.
+Ba chế độ, chọn cho từng câu hỏi:
 
-- Chi phí: Studio xoá `ANTHROPIC_API_KEY` khỏi môi trường của Claude, nên câu hỏi tính vào hạn mức gói Claude đang đăng nhập, không phát sinh tiền API.
-- Quyền: Claude chỉ được đọc và tìm file trong repo (Read, Grep, Glob). Bash, sửa/ghi file, Web và subagent đều bị chặn.
-- Mỗi lần chỉ một câu hỏi; tối đa 8000 ký tự, 10 phút. Nút **Cuộc trò chuyện mới** bỏ ngữ cảnh cũ, còn không thì Claude nhớ các câu trước (`--resume`).
+| Chế độ | Claude được làm gì | Dùng ở đâu |
+|---|---|---|
+| Chỉ đọc | đọc và tìm file trong repo | mọi nơi |
+| Tạo ảnh (mặc định) | thêm 4 công cụ Studio: `art2d` tách art (miễn phí), `resize` đổi kích thước/DPI (miễn phí), `ai_image` tạo/sửa ảnh OpenAI (tốn phí, chung trần ngân sách `runtime/ai-budget.json`), `budget`; chỉ ghi file vào thư mục kết quả của cuộc trò chuyện. Không có shell. | mọi nơi, kể cả link online |
+| Toàn quyền | như Claude Code trong Terminal: chạy lệnh, sửa file, cài gói | chỉ khi mở Studio ngay trên Mac (`127.0.0.1`) |
+
+- Chỉ đọc và Tạo ảnh chạy với `claude --restricted`: không có công cụ chạy lệnh, file chỉ trong repo, không đọc `runtime/online/`.
+- Chi phí: Studio xoá `ANTHROPIC_API_KEY` khỏi môi trường của Claude, nên câu hỏi tính vào hạn mức gói Claude, không phát sinh tiền API. Chỉ `ai_image` tốn tiền OpenAI.
+- Mọi câu hỏi được ghi vào `runtime/logs/claude-chat.jsonl` (giờ, chế độ, online hay không, nội dung). Ảnh gửi kèm ở `runtime/claude/<mã>/in/`, kết quả ở `runtime/claude/<mã>/out/`.
+- Mỗi lần một câu hỏi; tối đa 8000 ký tự, 4 ảnh x 15 MB, 15 phút. **Cuộc trò chuyện mới** bỏ ngữ cảnh cũ.
 
 ## Mẫu sản phẩm và nhận diện tự động
 
