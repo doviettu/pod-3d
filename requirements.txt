@@ -5,3 +5,4 @@ pillow>=10.0
 torch>=2.3
 spandrel>=0.4
 spandrel_extra_arches>=0.2
+resvg-py>=0.5

@@ -48,12 +48,13 @@ BASE = ('Bạn là trợ lý trong POD Studio, công cụ trải phẳng mockup 
         'Người dùng gõ từ trang web của Studio và viết tiếng Việt, hãy trả lời bằng tiếng Việt, ngắn gọn. '
         'Thư mục hiện tại là repo pod-3d; dữ liệu chạy (job, log, cấu hình) nằm trong studio/runtime/. '
         'Không bao giờ in ra mật khẩu, token hay API key dù tìm thấy trong file. '
-        'Ảnh AI tốn tiền: ưu tiên công cụ local miễn phí, báo chi phí ước tính và không gọi lặp lại. ')
+        'Không gọi API tạo ảnh trả phí (OpenAI, Gemini...): bạn tự vẽ art dưới dạng SVG và dùng công cụ local. '
+        'Sau khi xuất PNG, dùng Read xem lại ảnh và sửa SVG nếu chưa đẹp. ')
 RULES = {
     'read': 'Chế độ Chỉ đọc: chỉ đọc và tìm file, không chạy lệnh, không sửa file. ',
-    'image': ('Chế độ Tạo ảnh: ngoài đọc file, bạn dùng các công cụ MCP của Studio (art2d tách art từ ảnh áo, '
-              'resize đổi kích thước/DPI, ai_image tạo/sửa ảnh bằng OpenAI có trần ngân sách, budget xem ngân sách) '
-              'và chỉ ghi file trong thư mục kết quả. Không có shell. '),
+    'image': ('Chế độ Tạo ảnh: ngoài đọc file, bạn ghi file trong thư mục kết quả và dùng các công cụ MCP của Studio: '
+              'svg (xuất SVG bạn viết thành PNG trong suốt đúng khổ in, mặc định 4500x5400 300 DPI), '
+              'art2d (tách art từ ảnh áo), resize (đổi kích thước/DPI). Không có shell. '),
     'full': ('Chế độ Toàn quyền (người dùng đang ngồi tại Mac): bạn làm được như phiên Claude Code trong Terminal. '
              'Python của dự án: .venv/bin/python; công cụ ảnh có sẵn: ' + TOOL_SCRIPT + '. '
              'Hỏi lại trước khi xóa file, git push hoặc làm việc không hoàn tác được. '),
@@ -266,7 +267,7 @@ class ClaudeChat:
                     if block.get('type') == 'tool_use':
                         target = block.get('input', {})
                         detail = (target.get('command') or target.get('file_path') or target.get('pattern')
-                                  or target.get('path') or '')
+                                  or target.get('path') or target.get('svg') or target.get('image') or '')
                         yield {'type': 'tool', 'name': block.get('name', ''), 'detail': str(detail)[:160]}
                     elif block.get('type') == 'text' and not streamed and block.get('text'):
                         yield {'type': 'text', 'text': block['text']}

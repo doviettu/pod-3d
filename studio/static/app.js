@@ -839,7 +839,7 @@ loadTemplates();
 const chat = { session: null, chat: null, busy: false, attachments: [] };
 const MODE_NOTE = {
   read: 'Claude chỉ đọc file, không chạy lệnh.',
-  image: 'Claude chạy các công cụ ảnh của Studio (tách art, đổi kích thước, ảnh AI có trần ngân sách), không chạy lệnh khác.',
+  image: 'Claude tự vẽ art (SVG xuất PNG đúng khổ in), tách art, đổi kích thước. Không gọi API, không chạy lệnh khác.',
   full: 'Claude làm được mọi thứ như trong Terminal trên Mac: chạy lệnh, sửa file, cài gói.',
 };
 

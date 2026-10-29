@@ -1,5 +1,4 @@
 """Tests for the fixed image tools that "Hỏi Claude" may run through the online link."""
-import base64
 import io
 import json
 import os
@@ -60,26 +59,20 @@ class ClaudeToolsTest(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 self.run_tool('resize', '--image', str(self.source), '--size', '10x10', '--out', 'x')
 
-    def test_ai_image_respects_budget_and_records_spend(self):
-        settings = type('S', (), {'model': 'gpt-image-2.5-flare', 'api_key': 'k', 'image_size': '1K', 'quality': 'medium'})()
-        calls = []
-
-        def fake_request(_settings, payload, endpoint):
-            calls.append((endpoint, payload))
-            return {'data': [{'b64_json': base64.b64encode(png((16, 16), 'blue')).decode()}]}
-        with patch.object(claude_tools.openai_api, 'Settings', return_value=settings), \
-                patch.object(claude_tools.openai_api, '_request', side_effect=fake_request):
-            result = self.run_tool('ai-image', '--prompt', 'áo hoodie mèo', '--out', 'meo')
-            self.assertEqual(calls[0][0], 'images/generations')
-            self.assertTrue(Path(result['file']).is_file())
-            self.run_tool('ai-image', '--prompt', 'sửa màu', '--out', 'sua', '--image', str(self.source))
-            self.assertEqual(calls[1][0], 'images/edits')
-            ledger = (self.runtime / 'ai-ledger.jsonl').read_text().splitlines()
-            self.assertEqual([json.loads(r)['kind'] for r in ledger], ['claude-chat', 'claude-chat'])
-            (self.runtime / 'ai-budget.json').write_text(json.dumps({'daily_usd': 0}))
-            with self.assertRaises(SystemExit):
-                self.run_tool('ai-image', '--prompt', 'nữa', '--out', 'nua')
-            self.assertEqual(len(calls), 2)
+    def test_svg_renders_print_size_transparent_png(self):
+        svg = self.out / 'meo.svg'
+        svg.write_text('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120">'
+                       '<circle cx="50" cy="60" r="40" fill="#e4572e"/></svg>')
+        result = self.run_tool('svg', '--svg', str(svg), '--size', '450x540', '--out', 'meo')
+        with Image.open(result['file']) as img:
+            self.assertEqual(img.size, (450, 540))
+            self.assertEqual(img.mode, 'RGBA')
+            self.assertEqual(img.getpixel((2, 2))[3], 0)
+            self.assertEqual(img.getpixel((225, 270))[:3], (0xe4, 0x57, 0x2e))
+            self.assertEqual(round(img.info['dpi'][0]), 300)
+        self.assertTrue(Path(self.run_tool('svg', '--svg', 'meo.svg', '--size', '45x54', '--out', 'nho')['file']).is_file())
+        with self.assertRaises(SystemExit):
+            self.run_tool('svg', '--svg', str(self.source), '--out', 'x')
 
     def test_mcp_server_lists_and_calls_tools(self):
         lines = [json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {'protocolVersion': '2025-06-18'}}),
@@ -93,7 +86,7 @@ class ClaudeToolsTest(unittest.TestCase):
             claude_mcp.main()
         replies = [json.loads(r) for r in out.getvalue().splitlines()]
         self.assertEqual([r['id'] for r in replies], [1, 2, 3, 4])
-        self.assertEqual({t['name'] for t in replies[1]['result']['tools']}, {'budget', 'ai_image', 'art2d', 'resize'})
+        self.assertEqual({t['name'] for t in replies[1]['result']['tools']}, {'svg', 'art2d', 'resize'})
         self.assertFalse(replies[2]['result'].get('isError'))
         self.assertTrue((self.out / 'nho.png').is_file())
         self.assertTrue(replies[3]['result']['isError'])

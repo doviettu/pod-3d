@@ -14,17 +14,11 @@ import claude_tools  # noqa: E402
 
 PROTOCOL = '2025-06-18'
 TOOLS = [
-    {'name': 'budget', 'description': 'Xem trần ngân sách ảnh AI và số tiền đã dùng hôm nay/tháng này.',
-     'inputSchema': {'type': 'object', 'properties': {}}},
-    {'name': 'ai_image', 'description': ('Tạo hoặc sửa ảnh bằng OpenAI (TỐN PHÍ, có trần ngân sách). Không có image thì tạo '
-                                         'từ prompt; có image (đường dẫn trong studio/runtime/) thì sửa/ghép từ ảnh đó. '
-                                         'dry_run=true chỉ ước tính chi phí.'),
-     'inputSchema': {'type': 'object', 'required': ['prompt', 'out'], 'properties': {
-         'prompt': {'type': 'string'}, 'out': {'type': 'string', 'description': 'tên file kết quả'},
-         'image': {'type': 'array', 'items': {'type': 'string'}, 'maxItems': 4},
-         'size': {'type': 'string', 'enum': ['1K', '2K']},
-         'quality': {'type': 'string', 'enum': ['low', 'medium', 'high']},
-         'dry_run': {'type': 'boolean'}}}},
+    {'name': 'svg', 'description': ('Miễn phí: xuất file .svg bạn đã viết (trong thư mục kết quả) thành PNG trong suốt đúng '
+                                    'khổ in, mặc định 4500x5400 ở 300 DPI. Dùng để tự vẽ art: chữ, logo, hoạ tiết, minh hoạ vector.'),
+     'inputSchema': {'type': 'object', 'required': ['svg', 'out'], 'properties': {
+         'svg': {'type': 'string'}, 'size': {'type': 'string', 'description': 'ví dụ 4500x5400'},
+         'dpi': {'type': 'integer'}, 'out': {'type': 'string'}}}},
     {'name': 'art2d', 'description': ('Miễn phí: tách art in từ 1-2 ảnh áo (trước/sau) thành PNG trong suốt 4500x5400, '
                                       '300 DPI.'),
      'inputSchema': {'type': 'object', 'required': ['image'], 'properties': {
@@ -39,16 +33,11 @@ TOOLS = [
 
 def argv_for(name, args):
     """Turn MCP arguments into the claude_tools command line."""
-    if name == 'budget':
-        return ['budget']
-    if name == 'ai_image':
-        argv = ['ai-image', '--prompt', str(args.get('prompt', '')), '--out', str(args.get('out', ''))]
-        for path in args.get('image') or []:
-            argv += ['--image', str(path)]
-        for key in ('size', 'quality'):
-            if args.get(key):
-                argv += [f'--{key}', str(args[key])]
-        return argv + (['--dry-run'] if args.get('dry_run') else [])
+    if name == 'svg':
+        argv = ['svg', '--svg', str(args.get('svg', '')), '--out', str(args.get('out', ''))]
+        if args.get('size'):
+            argv += ['--size', str(args['size'])]
+        return argv + (['--dpi', str(int(args['dpi']))] if args.get('dpi') else [])
     if name == 'art2d':
         argv = ['art2d']
         for path in args.get('image') or []:
