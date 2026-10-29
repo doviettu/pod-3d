@@ -55,6 +55,7 @@ $$('.tabs button').forEach(button => button.addEventListener('click', () => {
   $$('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b === button)));
   $$('.tab').forEach(t => { t.hidden = t.id !== `tab-${button.dataset.tab}`; });
   if (button.dataset.tab === 'history') { loadHistory(); loadRights(); loadGoogle(); }
+  if (button.dataset.tab === 'claude') loadClaude();
 }));
 
 // ---------- adding sources ----------
@@ -833,3 +834,146 @@ document.addEventListener('keydown', event => {
 });
 
 loadTemplates();
+
+// ---------- ask Claude ----------
+const chat = { session: null, chat: null, busy: false, attachments: [] };
+const MODE_NOTE = {
+  read: 'Claude chỉ đọc file, không chạy lệnh.',
+  image: 'Claude tự vẽ art (SVG xuất PNG đúng khổ in), tách art, đổi kích thước. Không gọi API, không chạy lệnh khác.',
+  full: 'Claude làm được mọi thứ như trong Terminal trên Mac: chạy lệnh, sửa file, cài gói.',
+};
+
+async function loadClaude() {
+  try {
+    const status = await api('/api/claude/status');
+    if (!status.available) $('#chat-info').textContent = status.message;
+    $('#chat-send').disabled = !status.available;
+    for (const option of $('#chat-mode').options) option.disabled = !status.modes.includes(option.value);
+    if ($('#chat-mode').selectedOptions[0].disabled) $('#chat-mode').value = 'image';
+  } catch (err) { $('#chat-info').textContent = err.message; }
+  $('#chat-mode-note').textContent = MODE_NOTE[$('#chat-mode').value];
+  $('#chat-prompt').focus();
+}
+
+function chatBubble(kind, text = '') {
+  const bubble = el('div', { class: `msg ${kind}` }, text);
+  $('#chat-log').append(bubble);
+  bubble.scrollIntoView({ block: 'end' });
+  return bubble;
+}
+
+function renderAttachments() {
+  $('#chat-attachments').replaceChildren(...chat.attachments.map((item, i) =>
+    el('div', { class: 'chat-thumb' }, el('img', { src: item.url, alt: item.name }),
+       el('button', { type: 'button', 'aria-label': 'Bỏ ảnh', onclick: () => {
+         URL.revokeObjectURL(item.url); chat.attachments.splice(i, 1); renderAttachments();
+       } }, '✕'))));
+}
+
+function addAttachments(files) {
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+    if (chat.attachments.length >= 4) { $('#chat-mode-note').textContent = 'Tối đa 4 ảnh mỗi lần.'; break; }
+    if (file.size > 15 * 1024 * 1024) { $('#chat-mode-note').textContent = `${file.name} lớn hơn 15 MB.`; continue; }
+    chat.attachments.push({ file, name: file.name || 'anh-dan.png', url: URL.createObjectURL(file) });
+  }
+  renderAttachments();
+}
+
+async function sendChat(prompt) {
+  chat.busy = true;
+  $('#chat-send').disabled = true;
+  const mode = $('#chat-mode').value;
+  const sending = chat.attachments.splice(0);
+  renderAttachments();
+  const mine = chatBubble('user', prompt);
+  if (sending.length) mine.append(el('div', { class: 'shots' }, sending.map(a => el('img', { src: a.url, alt: a.name }))));
+  const bubble = chatBubble('claude');
+  const tools = el('div', { class: 'tools' }, 'Claude đang đọc câu hỏi…');
+  const body = el('span');
+  const shots = el('div', { class: 'shots' });
+  bubble.append(tools, body, shots);
+  try {
+    const attachments = await Promise.all(sending.map(async a => ({ name: a.name, data: await fileToBase64(a.file) })));
+    const response = await fetch('/api/claude/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, mode, attachments, session: chat.session, chat: chat.chat }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || `Lỗi ${response.status}`);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finished = false;
+    const used = [];
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let cut;
+      while ((cut = buffer.indexOf('\n\n')) >= 0) {
+        const line = buffer.slice(0, cut);
+        buffer = buffer.slice(cut + 2);
+        if (!line.startsWith('data: ')) continue;
+        const event = JSON.parse(line.slice(6));
+        if (event.type === 'start') {
+          chat.chat = event.chat;
+        } else if (event.type === 'text') {
+          body.textContent += event.text;
+          tools.textContent = used.length ? `Đã dùng: ${used.join(' · ')}` : '';
+        } else if (event.type === 'tool') {
+          used.push(event.detail || event.name);
+          tools.textContent = `Đã dùng: ${used.join(' · ')}`;
+        } else if (event.type === 'file') {
+          shots.append(event.image
+            ? el('img', { src: event.url, alt: event.name, title: event.name, onclick: () => window.open(event.url, '_blank') })
+            : el('a', { href: `${event.url}?download`, download: event.name }, `⬇ ${event.name}`));
+        } else if (event.type === 'done') {
+          finished = true;
+          chat.session = event.session || chat.session;
+          tools.textContent = [used.length ? `Đã dùng: ${used.join(' · ')}` : '', `${event.seconds}s`].filter(Boolean).join(' · ');
+        } else if (event.type === 'error') {
+          finished = true;
+          chat.session = event.session || chat.session;
+          throw new Error(event.error);
+        }
+        bubble.scrollIntoView({ block: 'end' });
+      }
+    }
+    if (!finished) throw new Error('Mất kết nối trước khi Claude trả lời xong.');
+  } catch (err) {
+    bubble.classList.add('error');
+    body.textContent += (body.textContent ? '\n\n' : '') + err.message;
+  } finally {
+    chat.busy = false;
+    $('#chat-send').disabled = false;
+  }
+}
+
+$('#chat-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const prompt = $('#chat-prompt').value.trim();
+  if (!prompt || chat.busy) return;
+  $('#chat-prompt').value = '';
+  sendChat(prompt);
+});
+$('#chat-prompt').addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    $('#chat-form').requestSubmit();
+  }
+});
+$('#chat-prompt').addEventListener('paste', event => {
+  const files = [...event.clipboardData.files];
+  if (files.length) { event.preventDefault(); addAttachments(files); }
+});
+$('#chat-file').addEventListener('change', event => { addAttachments(event.target.files); event.target.value = ''; });
+$('#chat-mode').addEventListener('change', () => { $('#chat-mode-note').textContent = MODE_NOTE[$('#chat-mode').value]; });
+$('#chat-new').addEventListener('click', () => {
+  chat.session = null;
+  chat.chat = null;
+  $('#chat-log').replaceChildren();
+  $('#chat-prompt').focus();
+});

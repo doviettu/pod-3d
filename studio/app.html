@@ -16,6 +16,7 @@
     <button role="tab" data-tab="3d" aria-selected="false">3D · In tràn</button>
     <button role="tab" data-tab="library" aria-selected="false">Thư viện kiểu dáng</button>
     <button role="tab" data-tab="history" aria-selected="false">Lịch sử</button>
+    <button role="tab" data-tab="claude" aria-selected="false">Hỏi Claude</button>
   </nav>
   <a class="legacy" href="/legacy">Công cụ duyệt chi tiết</a>
 </header>
@@ -132,6 +133,31 @@
       </label>
       <button id="rights-save">Lưu từ khoá</button>
     </details>
+  </section>
+
+  <!-- Ask Claude -->
+  <section id="tab-claude" class="tab" hidden>
+    <div class="panel chat-panel">
+      <div class="row"><h2>Hỏi Claude</h2><button id="chat-new">Cuộc trò chuyện mới</button></div>
+      <p class="muted" id="chat-info">Claude Code chạy trên Mac mini. Chọn chế độ cho từng câu hỏi; mọi câu hỏi đều được ghi nhật ký.</p>
+      <div id="chat-log" class="chat-log" aria-live="polite"></div>
+      <form id="chat-form" class="chat-form">
+        <div id="chat-attachments" class="chat-attachments"></div>
+        <textarea id="chat-prompt" rows="3" maxlength="8000" placeholder="Ví dụ: tách art áo này ra file in 4500x5400  (Enter để gửi, Shift+Enter xuống dòng, dán ảnh bằng Cmd+V)"></textarea>
+        <div class="chat-tools">
+          <label class="chat-mode">Chế độ
+            <select id="chat-mode">
+              <option value="read">Chỉ đọc</option>
+              <option value="image" selected>Tạo ảnh (công cụ Studio)</option>
+              <option value="full">Toàn quyền (chỉ trên Mac)</option>
+            </select>
+          </label>
+          <label class="chat-attach">📎 Gửi kèm ảnh<input type="file" id="chat-file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden></label>
+          <span class="muted" id="chat-mode-note"></span>
+        </div>
+        <button class="primary" id="chat-send" type="submit">Gửi</button>
+      </form>
+    </div>
   </section>
 </main>
 

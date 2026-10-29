@@ -90,6 +90,32 @@ kết quả ở `runtime/online/form-verification.json`. Kiểm tra tải PSD 42
 có SHA-256 khớp bản gốc, lưu ở `runtime/online/verification.json`.
 Không gọi tạo ảnh trả phí trong các kiểm tra này.
 
+## Hỏi Claude (tab trên trang v2)
+
+Tab **Hỏi Claude** gửi câu hỏi tới Claude Code chạy trên chính Mac mini (`claude -p`) và hiện câu trả lời dần dần trên trang, cả khi mở qua link online (đã qua bước đăng nhập). Gửi kèm ảnh bằng nút 📎 hoặc dán (Cmd+V); ảnh và file Claude tạo ra hiện ngay trong khung chat.
+
+Cài một lần trên Mac:
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash   # cài Claude Code
+~/.local/bin/claude                              # gõ /login, chọn tài khoản Claude Pro/Max, rồi /exit
+~/pod-3d/.venv/bin/pip install resvg-py         # bộ vẽ SVG -> PNG, không cần thư viện hệ thống
+~/pod-3d/studio/restart.command
+```
+
+Ba chế độ, chọn cho từng câu hỏi:
+
+| Chế độ | Claude được làm gì | Dùng ở đâu |
+|---|---|---|
+| Chỉ đọc | đọc và tìm file trong repo | mọi nơi |
+| Tạo ảnh (mặc định) | Claude tự vẽ art bằng SVG rồi dùng 3 công cụ local miễn phí: `svg` xuất PNG trong suốt đúng khổ in (mặc định 4500x5400, 300 DPI), `art2d` tách art từ ảnh áo, `resize` đổi kích thước/DPI. Chỉ ghi file vào thư mục kết quả của cuộc trò chuyện. Không có shell, không gọi API tạo ảnh. | mọi nơi, kể cả link online |
+| Toàn quyền | như Claude Code trong Terminal: chạy lệnh, sửa file, cài gói | chỉ khi mở Studio ngay trên Mac (`127.0.0.1`) |
+
+- Chỉ đọc và Tạo ảnh chạy với `claude --restricted`: không có công cụ chạy lệnh, file chỉ trong repo, không đọc `runtime/online/`.
+- Chi phí: Studio xoá `ANTHROPIC_API_KEY` khỏi môi trường của Claude, nên câu hỏi tính vào hạn mức gói Claude, không phát sinh tiền API. Khung chat không gọi OpenAI hay API tạo ảnh nào.
+- Mọi câu hỏi được ghi vào `runtime/logs/claude-chat.jsonl` (giờ, chế độ, online hay không, nội dung). Ảnh gửi kèm ở `runtime/claude/<mã>/in/`, kết quả ở `runtime/claude/<mã>/out/`.
+- Mỗi lần một câu hỏi; tối đa 8000 ký tự, 4 ảnh x 15 MB, 15 phút. **Cuộc trò chuyện mới** bỏ ngữ cảnh cũ.
+
 ## Mẫu sản phẩm và nhận diện tự động
 
 Các bố cục mới trong thư mục `templates/` của ứng dụng, tách khỏi template gốc của engine:

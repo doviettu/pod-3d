@@ -119,3 +119,25 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 
 .google-panel ol.steps { padding-left: 1.2em; line-height: 1.5; }
 .google-panel textarea { width: 100%; font-family: ui-monospace, monospace; font-size: 12px; }
+
+/* Ask Claude */
+.chat-panel { display: grid; gap: 10px; }
+.chat-log { display: grid; gap: 10px; max-height: 60vh; overflow-y: auto; }
+.chat-log:empty { display: none; }
+.msg { padding: 10px 12px; border-radius: 12px; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.55; }
+.msg.user { background: color-mix(in srgb, var(--accent) 12%, transparent); justify-self: end; max-width: 85%; }
+.msg.claude { background: var(--bg); border: 1px solid var(--line); }
+.msg.error { color: var(--bad); }
+.msg .tools { color: var(--muted); font-size: 12px; margin-bottom: 6px; white-space: normal; }
+.chat-form textarea { width: 100%; font: inherit; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--card); color: var(--text); resize: vertical; }
+.chat-tools { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-top: 8px; font-size: 14px; }
+.chat-tools select { font: inherit; margin-left: 6px; }
+.chat-attach { cursor: pointer; color: var(--accent); }
+.chat-attachments { display: flex; gap: 8px; flex-wrap: wrap; }
+.chat-attachments:empty { display: none; }
+.chat-thumb { position: relative; }
+.chat-thumb img, .msg .shots img { height: 72px; border-radius: 8px; border: 1px solid var(--line); display: block; }
+.chat-thumb button { position: absolute; top: -6px; right: -6px; padding: 0 6px; border-radius: 99px; font-size: 12px; }
+.msg .shots { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; white-space: normal; }
+.msg .shots img { height: 180px; cursor: zoom-in; background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0 / 16px 16px; }
+.msg .shots a { font-size: 13px; }
