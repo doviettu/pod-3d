@@ -13,11 +13,14 @@ import shutil
 import threading
 from urllib.parse import unquote
 
+import cv2
 import numpy as np
+from PIL import Image
 
 import art2d
 import gdrive
 import listing
+import mockups
 import preflight
 import rights
 import sources
@@ -41,6 +44,7 @@ class StudioV2:
         self.cache.mkdir(parents=True, exist_ok=True)
         self.store = JobStore(self.runtime / 'studio.db')
         self.rights = rights.RightsChecker(self.runtime)
+        self.mockups = mockups.MockupLibrary(self.runtime / 'mockups')
         self.lock = threading.Lock()
         self.google = gdrive.Google(gdrive.GoogleConfig(google_config), google_transport or gdrive.urllib_transport)
         self.drive = gdrive.DriveSync(self.google, self.runtime / 'drive-queue.json', self._drive_bundle,
@@ -408,23 +412,85 @@ class StudioV2:
         folder = self.jobs_dir / job_id
         photo = job['extras'].get('real_photo')
         real = folder / photo['file'] if photo else None
+        rendered = [folder / m['file'] for m in job['extras'].get('mockups', {}).get('files', [])]
         if job['kind'] == '2d':
-            mockups = sorted(folder.glob('source[12].*'))
+            mockups = rendered + sorted(folder.glob('source[12].*'))
             sides = job['outputs'].get('sides', {})
             designs = [(side, folder / out['file'], list(listing.SHIRT_COLORS) if side == 'front' else ['trang', 'den'])
                        for side, out in sides.items()]
             panels = []
         else:
             try:
-                mockups = [self._cached(job.get('source_sha256'))]
+                mockups = rendered + [self._cached(job.get('source_sha256'))]
             except ValueError:
-                mockups = []
+                mockups = rendered
             designs = []
             panels = [(label, path) for label, path, _ in self._print_files(job)]
         result = listing.build(folder / 'listing', real, mockups, designs, panels)
         result['built'] = datetime.now().isoformat(timespec='seconds')
         self.store.log(job_id, f'Đã tạo bộ ảnh listing: {len(result["files"])} ảnh.')
         return self._set_extra(job_id, 'listing', result)
+
+    # ---- sales mockups ---------------------------------------------------------
+    def mockup_list(self):
+        return {'presets': self.mockups.list(), 'groups': self.mockups.groups()}
+
+    def mockup_create(self, data):
+        raw = sources.from_base64((data or {}).get('image_base64'))
+        sources.check_image(raw)
+        return self.mockups.create(raw, data.get('group'), data.get('name'), data.get('kind', 'tee'))
+
+    def mockup_update(self, preset_id, data):
+        return self.mockups.update(preset_id, data or {})
+
+    def mockup_delete(self, preset_id):
+        self.mockups.delete(preset_id)
+        return self.mockup_list()
+
+    def _art(self, data):
+        """The design to place: an uploaded PNG, or a side of a finished 2D job."""
+        if data.get('art_base64'):
+            return mockups.decode_rgba(sources.from_base64(data['art_base64']))
+        job = self.get(data.get('job_id') or '')
+        sides = job['outputs'].get('sides', {}) if job['kind'] == '2d' else {}
+        if not sides:
+            raise ValueError('Hãy chọn một job 2D đã xử lý xong hoặc tải lên file PNG art.')
+        side = data.get('side') if data.get('side') in sides else 'front' if 'front' in sides else next(iter(sides))
+        return mockups.decode_rgba((self.jobs_dir / job['id'] / sides[side]['file']).read_bytes())
+
+    def mockup_preview(self, preset_id, data):
+        data = data or {}
+        image = self.mockups.render(preset_id, self._art(data), data.get('zone'), data.get('options'),
+                                    flat=data.get('mode') == 'flat')
+        folder = self.mockups.file(preset_id, 'blank.jpg').parent
+        listing.save_jpeg(Image.fromarray(image[..., ::-1]), folder / 'preview.jpg', 2_500_000)
+        return {'url': f'/api/v2/mockups/{preset_id}/preview.jpg?t={datetime.now().timestamp():.0f}'}
+
+    def mockup_diagnostic(self, preset_id, name):
+        ok, data = cv2.imencode('.png', self.mockups.diagnostic(preset_id, name))
+        return data.tobytes()
+
+    def job_mockups(self, job_id, data):
+        """Render every preset of a group with this job's design; the listing set uses them."""
+        job = self.get(job_id)
+        group = (data or {}).get('group')
+        presets = [p for p in self.mockups.list() if p['group'] == group]
+        if not presets:
+            raise ValueError('Nhóm mockup không có ảnh nào.')
+        art = self._art({'job_id': job_id, 'side': (data or {}).get('side')})
+        out = self.jobs_dir / job_id / 'mockups'
+        out.mkdir(parents=True, exist_ok=True)
+        for old in out.glob('*.jpg'):
+            old.unlink()
+        made = []
+        for preset in presets:
+            image = self.mockups.render(preset['id'], art)
+            name = f'{preset["id"]}.jpg'
+            listing.save_jpeg(Image.fromarray(image[..., ::-1]), out / name, 2_500_000)
+            made.append({'file': f'mockups/{name}', 'preset': preset['id'], 'name': preset['name']})
+        self.store.log(job_id, f'Đã render {len(made)} mockup nhóm "{group}".')
+        return self._set_extra(job_id, 'mockups', {'group': group, 'files': made,
+                                                   'built': datetime.now().isoformat(timespec='seconds')})
 
     def file_path(self, job_id, relative):
         if not JOB_ID.fullmatch(job_id or ''):

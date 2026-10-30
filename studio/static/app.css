@@ -144,3 +144,15 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 .card h4 { margin: 6px 0 0; font-size: 13px; }
 .card img.mini { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); cursor: zoom-in; }
 .card .strip { display: flex; gap: 6px; flex-wrap: wrap; }
+.mk-view { margin-top: 10px; }
+.mk-stage img, .mk-result, .mk-compare > img { width: 100%; display: block; }
+.mk-result { cursor: zoom-in; border-radius: 10px; }
+.quads polyline { fill: none; stroke: #d9480f; stroke-width: 1.5; vector-effect: non-scaling-stroke; cursor: move; pointer-events: stroke; }
+.mk-compare { position: relative; overflow: hidden; border-radius: 10px; }
+.mk-after { position: absolute; inset: 0 auto 0 0; overflow: hidden; border-right: 2px solid var(--accent); }
+.mk-after img { max-width: none; display: block; }
+.mk-view input[type=range] { width: 100%; }
+.mk-maps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mk-maps figure { margin: 0; } .mk-maps img { width: 100%; border-radius: 8px; border: 1px solid var(--line); }
+.mk-stage { position: relative; user-select: none; -webkit-user-select: none; touch-action: none; }
+.mk-stage .quads { pointer-events: none; } .mk-stage .quads polygon, .mk-stage .quads polyline { pointer-events: auto; }

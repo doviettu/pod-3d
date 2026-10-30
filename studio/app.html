@@ -14,6 +14,7 @@
   <nav class="tabs" role="tablist">
     <button role="tab" data-tab="2d" aria-selected="true">2D · In 1–2 mặt</button>
     <button role="tab" data-tab="3d" aria-selected="false">3D · In tràn</button>
+    <button role="tab" data-tab="mockup" aria-selected="false">Mockup bán hàng</button>
     <button role="tab" data-tab="library" aria-selected="false">Thư viện kiểu dáng</button>
     <button role="tab" data-tab="history" aria-selected="false">Lịch sử</button>
     <button role="tab" data-tab="claude" aria-selected="false">Hỏi Claude</button>
@@ -104,6 +105,59 @@
       </div>
     </div>
     <div id="results-3d" class="results"></div>
+  </section>
+
+  <!-- Sales mockups -->
+  <section id="tab-mockup" class="tab" hidden>
+    <div class="grid">
+      <div class="panel">
+        <div class="row"><h2>Mockup bán hàng</h2>
+          <span><select id="mk-preset" aria-label="Ảnh trơn"></select> <button id="mk-delete" class="ghost">Xoá</button></span></div>
+        <div class="boxbar" id="mk-views">
+          <button class="side active" data-view="zone">Vùng in &amp; Art</button>
+          <button class="side" data-view="render">Render</button>
+          <button class="side" data-view="flat">Xem phẳng</button>
+          <button class="side" data-view="compare">So sánh</button>
+          <button class="side" data-view="maps">Bản đồ</button>
+        </div>
+        <div id="mk-view" class="mk-view"><p class="muted">Thêm một ảnh sản phẩm trơn (áo, cốc) ở cột bên phải để bắt đầu.</p></div>
+        <p class="muted" id="mk-note"></p>
+      </div>
+      <div class="panel">
+        <h3>Thêm ảnh trơn</h3>
+        <p class="muted">Ảnh áo/cốc trơn, nền phẳng, của bạn tự chụp hoặc mua có license thương mại. Mỗi ảnh được "nướng" một lần thành bản đồ nếp vải và ánh sáng.</p>
+        <label class="block">Nhóm <input id="mk-group" type="text" maxlength="60" placeholder="Ví dụ: Tee đen trơn"></label>
+        <label class="block">Tên <input id="mk-name" type="text" maxlength="80" placeholder="Ví dụ: Mặt trước, treo móc"></label>
+        <label class="block">Loại <select id="mk-kind"><option value="tee">Áo (vùng in phẳng)</option><option value="mug">Cốc / tumbler (quấn trụ)</option></select></label>
+        <input id="mk-file" type="file" accept="image/jpeg,image/png,image/webp">
+        <button id="mk-add" class="accent">Thêm ảnh trơn</button>
+        <h3>Vùng in</h3>
+        <label class="block">Kiểu vùng
+          <select id="mk-zone">
+            <option value="rect">Rect · khung chữ nhật</option>
+            <option value="quad">Quad · 4 góc tự do (chụp nghiêng)</option>
+            <option value="mesh">Mesh 3×3 · lưới 16 điểm (nhăn, phồng)</option>
+            <option value="cylinder">Trụ · cốc, tumbler</option>
+          </select></label>
+        <label class="check"><input type="checkbox" id="mk-lock"> Khoá vùng (không kéo nhầm)</label>
+        <div id="mk-cyl" hidden>
+          <label class="block">Góc nhìn thấy <span id="mk-wrap-v"></span>° <input id="mk-wrap" type="range" min="30" max="180" step="5"></label>
+          <label class="block">Độ cong miệng cốc <input id="mk-sag" type="range" min="0" max="0.3" step="0.01"></label>
+          <label class="block">Độ thuôn (đáy/miệng) <input id="mk-taper" type="range" min="0.6" max="1.4" step="0.02"></label>
+        </div>
+        <h3>Art và hiệu ứng</h3>
+        <label class="block">Art từ job 2D <select id="mk-job"></select></label>
+        <label class="block">hoặc file PNG art <input id="mk-art" type="file" accept="image/png,image/webp"></label>
+        <label class="block">Nếp vải <input id="mk-fold" type="range" min="0" max="3" step="0.1"></label>
+        <label class="block">Ánh sáng <input id="mk-light" type="range" min="0" max="1.5" step="0.05"></label>
+        <label class="block">Vân vải <input id="mk-texture" type="range" min="0" max="2" step="0.1"></label>
+        <label class="block">Đặt art <select id="mk-fit"><option value="contain">Vừa khung, căn trên</option><option value="cover">Phủ kín khung (cắt bớt)</option><option value="stretch">Kéo giãn</option></select></label>
+        <div class="actions">
+          <button id="mk-render" class="accent">Render thử</button>
+          <button id="mk-save">Lưu vùng và thông số</button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- Library -->

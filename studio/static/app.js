@@ -786,10 +786,29 @@ function listingInfo(job) {
     set ? el('a', { class: 'button', href: `/v2files/${job.id}/listing/${set.zip}?download=1` }, 'Tải bộ ảnh (ZIP)') : null)];
 }
 
+function mockupInfo(job) {
+  if (job.kind !== '2d') return [];
+  const made = (job.extras || {}).mockups;
+  const groups = state.mockupGroups || [];
+  const group = el('select', { 'aria-label': 'Nhóm mockup' }, groups.map(g => el('option', { value: g, selected: made && made.group === g }, g)));
+  const run = el('button', { disabled: !groups.length, onclick: async () => {
+    run.disabled = true;
+    run.textContent = 'Đang render…';
+    try { showJob(await api(`/api/v2/jobs/${job.id}/mockups`, { group: group.value }), job.kind); }
+    catch (error) { alert(error.message); run.disabled = false; run.textContent = 'Render mockup'; }
+  } }, 'Render mockup');
+  return [el('h4', {}, 'Mockup bán hàng'),
+    made ? el('div', { class: 'strip' }, made.files.map(f => el('img', { class: 'mini', src: `/v2files/${job.id}/${f.file}`, alt: f.name,
+      title: f.name, onclick: () => openViewer(`/v2files/${job.id}/${f.file}`, `${job.sku} · ${f.name}`) }))) : null,
+    groups.length ? el('div', { class: 'actions' }, group, run)
+      : el('div', { class: 'muted' }, 'Chưa có ảnh trơn nào: thêm ở tab Mockup bán hàng.')];
+}
+
 function sellCard(job, head) {
   if (!['review', 'approved'].includes(job.status)) return el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head.cloneNode(true)));
   return el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head.cloneNode(true),
     el('h4', {}, 'Kiểm tra trước khi gửi nhà in'), ...preflightInfo(job),
+    ...mockupInfo(job),
     el('h4', {}, 'Ảnh mẫu thật và bộ ảnh listing'), ...realPhotoInfo(job), ...listingInfo(job)));
 }
 
@@ -797,6 +816,7 @@ async function loadProfiles() {
   try { state.profiles = await api('/api/v2/preflight-profiles'); } catch { state.profiles = []; }
 }
 loadProfiles();
+api('/api/v2/mockups').then(r => { state.mockupGroups = r.groups; }).catch(() => {});
 
 // ---------- copyright keywords ----------
 async function loadRights() {
@@ -1054,3 +1074,230 @@ $('#chat-new').addEventListener('click', () => {
   $('#chat-log').replaceChildren();
   $('#chat-prompt').focus();
 });
+
+// ---------- sales mockups ----------
+const mk = { presets: [], current: null, zone: null, view: 'zone', art: null, preview: null };
+
+function mkPreset() { return mk.presets.find(p => p.id === $('#mk-preset').value); }
+
+function zoneHandles(zone) {
+  if (zone.type === 'rect') { const [x, y, w, h] = zone.box; return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]; }
+  if (zone.type === 'cylinder') { const [x0, y0, x1, y1] = zone.box; return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; }
+  return zone.points;
+}
+
+function setHandle(zone, i, [x, y]) {
+  if (zone.type === 'quad' || zone.type === 'mesh') { zone.points[i] = [x, y]; return; }
+  const pts = zoneHandles(zone);
+  const [ox, oy] = pts[(i + 2) % 4];   // the opposite corner stays put
+  const box = [Math.min(x, ox), Math.min(y, oy), Math.max(x, ox), Math.max(y, oy)];
+  zone.box = zone.type === 'rect' ? [box[0], box[1], box[2] - box[0], box[3] - box[1]] : box;
+}
+
+function moveZone(zone, start, dx, dy) {
+  if (zone.type === 'rect') zone.box = [start.box[0] + dx, start.box[1] + dy, start.box[2], start.box[3]];
+  else if (zone.type === 'cylinder') zone.box = [start.box[0] + dx, start.box[1] + dy, start.box[2] + dx, start.box[3] + dy];
+  else zone.points = start.points.map(([x, y]) => [x + dx, y + dy]);
+}
+
+function outline(zone) {
+  const pts = zoneHandles(zone);
+  if (zone.type !== 'mesh') return [pts];
+  const lines = [];
+  for (let j = 0; j < 4; j++) lines.push(pts.slice(j * 4, j * 4 + 4));
+  for (let i = 0; i < 4; i++) lines.push([0, 1, 2, 3].map(j => pts[j * 4 + i]));
+  return lines;
+}
+
+function defaultZone(type, old) {
+  const pts = zoneHandles(old);
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const [x0, y0, x1, y1] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  if (type === 'rect') return { type, box: [x0, y0, x1 - x0, y1 - y0] };
+  if (type === 'cylinder') return { type, box: [x0, y0, x1, y1], wrap: 150, sag: 0.05, taper: 1 };
+  if (type === 'quad') return { type, points: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] };
+  const points = [];
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) points.push([x0 + (x1 - x0) * i / 3, y0 + (y1 - y0) * j / 3]);
+  return { type, points };
+}
+
+function mkStage() {
+  const p = mkPreset();
+  const stage = el('div', { class: 'stage marking mk-stage' }, el('img', { src: p.blank_url, alt: p.name, draggable: 'false' }));
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 1 1');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.classList.add('quads');
+  const draw = () => {
+    svg.replaceChildren(...outline(mk.zone).map((line, n) => {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', n === 0 && mk.zone.type !== 'mesh' ? 'polygon' : 'polyline');
+      node.setAttribute('points', line.map(q => q.join(',')).join(' '));
+      node.classList.add('active');
+      node.dataset.zone = '1';
+      return node;
+    }));
+    $$('.qhandle', stage).forEach(h => h.remove());
+    if (!$('#mk-lock').checked) zoneHandles(mk.zone).forEach((q, i) => stage.append(el('i', { class: 'qhandle', 'data-corner': String(i),
+      style: `left:${q[0] * 100}%;top:${q[1] * 100}%` })));
+  };
+  stage.querySelector('img').after(svg);
+  draw();
+  let drag = null;
+  const point = event => {
+    const r = stage.getBoundingClientRect();
+    return [Math.min(1.2, Math.max(-0.2, (event.clientX - r.left) / r.width)), Math.min(1.2, Math.max(-0.2, (event.clientY - r.top) / r.height))];
+  };
+  stage.addEventListener('dragstart', event => event.preventDefault());
+  stage.addEventListener('pointerdown', event => {
+    if ($('#mk-lock').checked) return;
+    const t = event.target;
+    if (t.dataset.corner === undefined && !t.dataset.zone) return;
+    event.preventDefault();
+    drag = { corner: t.dataset.corner !== undefined ? Number(t.dataset.corner) : null, start: point(event), zone: JSON.parse(JSON.stringify(mk.zone)) };
+    stage.setPointerCapture(event.pointerId);
+  });
+  stage.addEventListener('pointermove', event => {
+    if (!drag) return;
+    const [x, y] = point(event);
+    if (drag.corner !== null) setHandle(mk.zone, drag.corner, [x, y]);
+    else moveZone(mk.zone, drag.zone, x - drag.start[0], y - drag.start[1]);
+    draw();
+  });
+  const finish = () => { drag = null; };
+  stage.addEventListener('pointerup', finish);
+  stage.addEventListener('pointercancel', finish);
+  return stage;
+}
+
+function mkOptions() {
+  return { fold: Number($('#mk-fold').value), light: Number($('#mk-light').value), texture: Number($('#mk-texture').value), fit: $('#mk-fit').value };
+}
+
+function mkZone() {
+  const zone = JSON.parse(JSON.stringify(mk.zone));
+  if (zone.type === 'cylinder') Object.assign(zone, { wrap: Number($('#mk-wrap').value), sag: Number($('#mk-sag').value), taper: Number($('#mk-taper').value) });
+  return zone;
+}
+
+function mkArtBody() {
+  if (mk.art) return { art_base64: mk.art };
+  const [job_id, side] = ($('#mk-job').value || '').split(':');
+  return job_id ? { job_id, side } : null;
+}
+
+async function mkRender(mode) {
+  const p = mkPreset();
+  const art = mkArtBody();
+  if (!p || !art) { $('#mk-note').textContent = 'Hãy chọn art: một job 2D hoặc file PNG.'; return null; }
+  $('#mk-note').textContent = 'Đang render…';
+  try {
+    const r = await api(`/api/v2/mockups/${p.id}/preview`, { ...art, zone: mkZone(), options: mkOptions(), mode });
+    $('#mk-note').textContent = '';
+    return r.url;
+  } catch (error) { $('#mk-note').textContent = error.message; return null; }
+}
+
+async function mkShow() {
+  const host = $('#mk-view');
+  const p = mkPreset();
+  $$('#mk-views button').forEach(b => b.classList.toggle('active', b.dataset.view === mk.view));
+  if (!p) { host.replaceChildren(el('p', { class: 'muted' }, 'Thêm một ảnh sản phẩm trơn ở cột bên phải để bắt đầu.')); return; }
+  if (mk.view === 'zone') { host.replaceChildren(mkStage()); return; }
+  if (mk.view === 'maps') {
+    const maps = { mask: 'Mask sản phẩm', light: 'Ánh sáng', disp: 'Nếp vải', texture: 'Vân vải' };
+    host.replaceChildren(el('div', { class: 'mk-maps' }, Object.entries(maps).map(([k, label]) =>
+      el('figure', {}, el('img', { src: `/api/v2/mockups/${p.id}/diag/${k}.png`, alt: label, loading: 'lazy' }), el('figcaption', { class: 'muted' }, label)))));
+    return;
+  }
+  const url = await mkRender(mk.view === 'flat' ? 'flat' : 'render');
+  if (!url) return;
+  if (mk.view !== 'compare') {
+    host.replaceChildren(el('img', { class: 'mk-result', src: url, alt: 'Kết quả', onclick: () => openViewer(url, p.name) }));
+    return;
+  }
+  const after = el('img', { src: url, alt: 'Sau' });
+  const clip = el('div', { class: 'mk-after' }, after);
+  const slider = el('input', { type: 'range', min: '0', max: '100', value: '50', 'aria-label': 'Trước / sau', oninput: () => { clip.style.width = slider.value + '%'; } });
+  host.replaceChildren(el('div', { class: 'mk-compare' }, el('img', { src: p.blank_url, alt: 'Trước' }), clip), slider);
+  clip.style.width = '50%';
+  after.style.width = host.clientWidth + 'px';
+}
+
+function mkLoadPreset() {
+  const p = mkPreset();
+  mk.zone = p ? JSON.parse(JSON.stringify(p.zone)) : null;
+  if (p) {
+    $('#mk-zone').value = p.zone.type;
+    const o = p.options;
+    $('#mk-fold').value = o.fold; $('#mk-light').value = o.light; $('#mk-texture').value = o.texture; $('#mk-fit').value = o.fit;
+    $('#mk-wrap').value = p.zone.wrap || 150; $('#mk-sag').value = p.zone.sag || 0.05; $('#mk-taper').value = p.zone.taper || 1;
+    $('#mk-wrap-v').textContent = $('#mk-wrap').value;
+  }
+  $('#mk-cyl').hidden = !p || p.zone.type !== 'cylinder';
+  mkShow();
+}
+
+async function loadMockups(select) {
+  try {
+    const [lib, jobs] = await Promise.all([api('/api/v2/mockups'), api('/api/v2/jobs?kind=2d')]);
+    mk.presets = lib.presets;
+    const keep = select || $('#mk-preset').value;
+    $('#mk-preset').replaceChildren(...lib.groups.map(g => el('optgroup', { label: g },
+      lib.presets.filter(p => p.group === g).map(p => el('option', { value: p.id, selected: p.id === keep }, p.name)))));
+    const done = jobs.filter(j => ['review', 'approved'].includes(j.status) && j.outputs.sides);
+    const jobKeep = $('#mk-job').value;
+    $('#mk-job').replaceChildren(el('option', { value: '' }, '— chọn job —'),
+      ...done.flatMap(j => Object.keys(j.outputs.sides).map(side => el('option', { value: `${j.id}:${side}`, selected: `${j.id}:${side}` === jobKeep }, `${j.sku} · ${SIDE_LABEL[side]}`))));
+    state.mockupGroups = lib.groups;
+    mkLoadPreset();
+  } catch (error) { $('#mk-note').textContent = error.message; }
+}
+
+$$('#mk-views button').forEach(b => b.addEventListener('click', () => { mk.view = b.dataset.view; mkShow(); }));
+$('#mk-preset').addEventListener('change', mkLoadPreset);
+$('#mk-lock').addEventListener('change', () => mk.view === 'zone' && mkShow());
+$('#mk-zone').addEventListener('change', () => {
+  if (!mk.zone) return;
+  mk.zone = defaultZone($('#mk-zone').value, mk.zone);
+  $('#mk-cyl').hidden = mk.zone.type !== 'cylinder';
+  mk.view = 'zone';
+  mkShow();
+});
+$('#mk-wrap').addEventListener('input', () => { $('#mk-wrap-v').textContent = $('#mk-wrap').value; });
+$('#mk-art').addEventListener('change', async () => {
+  const file = $('#mk-art').files[0];
+  mk.art = file ? await fileToBase64(file) : null;
+  if (file) $('#mk-job').value = '';
+});
+$('#mk-job').addEventListener('change', () => { if ($('#mk-job').value) { mk.art = null; $('#mk-art').value = ''; } });
+$('#mk-render').addEventListener('click', () => { mk.view = mk.view === 'zone' || mk.view === 'maps' ? 'render' : mk.view; mkShow(); });
+$('#mk-save').addEventListener('click', async () => {
+  const p = mkPreset();
+  if (!p) return;
+  try {
+    await api(`/api/v2/mockups/${p.id}`, { zone: mkZone(), options: mkOptions() });
+    await loadMockups(p.id);
+    $('#mk-note').textContent = 'Đã lưu vùng in và thông số.';
+  } catch (error) { $('#mk-note').textContent = error.message; }
+});
+$('#mk-add').addEventListener('click', async () => {
+  const file = $('#mk-file').files[0];
+  if (!file) { $('#mk-note').textContent = 'Hãy chọn ảnh sản phẩm trơn.'; return; }
+  $('#mk-add').disabled = true;
+  $('#mk-note').textContent = 'Đang nướng bản đồ nếp vải và ánh sáng…';
+  try {
+    const p = await api('/api/v2/mockups', { image_base64: await fileToBase64(file), group: $('#mk-group').value,
+      name: $('#mk-name').value || file.name.replace(/\.[^.]+$/, ''), kind: $('#mk-kind').value });
+    $('#mk-file').value = '';
+    mk.view = 'zone';
+    await loadMockups(p.id);
+    $('#mk-note').textContent = 'Đã thêm. Kéo các góc để đặt vùng in, chọn art rồi bấm Render thử, xong bấm Lưu.';
+  } catch (error) { $('#mk-note').textContent = error.message; }
+  $('#mk-add').disabled = false;
+});
+$('#mk-delete').addEventListener('click', async () => {
+  const p = mkPreset();
+  if (!p || !confirm(`Xoá ảnh trơn "${p.name}" khỏi nhóm "${p.group}"?`)) return;
+  try { await api(`/api/v2/mockups/${p.id}/delete`, {}); await loadMockups(); } catch (error) { alert(error.message); }
+});
+$('.tabs button[data-tab="mockup"]').addEventListener('click', () => loadMockups());
