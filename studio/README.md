@@ -14,10 +14,12 @@ Mở `http://127.0.0.1:8765` sau khi chạy `studio/start.command`.
   2. **OAuth consent screen**: External, thêm email của bạn, bấm **Publish app**. Tool chỉ xin quyền `drive.file` (chỉ thấy file do tool tạo) nên không cần Google duyệt; để ở Testing thì 7 ngày phải kết nối lại.
   3. **Credentials → OAuth client ID → Desktop app**, tải file JSON, dán vào ô trong tab Lịch sử, bấm **Kết nối Google**.
   Khoá và token lưu ở `~/.config/pod-studio/google.json` (quyền 600), không nằm trong repo.
+- **Kiểm tra file in** (thẻ cuối của mỗi job): job 2D tự kiểm theo hồ sơ "In DTG/DTF chung"; chọn nhà in khác rồi bấm **Kiểm tra lại**. Tool báo kích thước, DPI, dung lượng, vùng trong suốt (in tràn phải phủ kín), pixel bán trong suốt (in DTG/DTF ra viền mờ), nét mảnh hơn 0,5 mm và chấm rác. Sửa số của từng nhà in trong `suppliers.json`. Muốn kiểm màu ngoài dải CMYK: đặt file ICC của nhà in vào `~/.config/pod-studio/cmyk.icc`.
+- **Ảnh mẫu thật + bộ ảnh listing**: từ 22/10/2026 Etsy yêu cầu mỗi listing có ít nhất 1 ảnh chụp sản phẩm thật, chưa chỉnh. Bấm **Thêm ảnh mẫu thật** (≥ 1000 px, nên 2000 px), rồi **Tạo bộ ảnh listing**: ảnh thật đứng đầu, sau đó mockup gốc và bản xem trước trên áo trắng/đen/xám/navy, mỗi ảnh 2000 × 2000 px JPEG dưới 1 MB, tải về dạng ZIP (`runtime/v2-jobs/<mã>/listing/`). Thiếu ảnh thật thì nút bị khoá. Ảnh thật cũng được đưa lên Drive khi duyệt.
 - Nút **Mở rộng** mở trình xem zoom tới từng pixel (phím `1` = 100%, `0` = vừa khung), đổi nền ca rô/trắng/tối để soi vùng trong suốt.
 - Cùng ảnh, cùng tuỳ chọn thì không chạy lại mà hiện kết quả cũ.
 
-Mã nguồn: `app.html`, `static/app.js`, `v2.py` (dịch vụ), `art2d.py` (pipeline 2D), `styles.py` (thư viện kiểu dáng, nhận dáng, tạo khuôn), `sources.py` (tải ảnh/link), `jobstore.py` (SQLite), `rights.py` (bản quyền), `gdrive.py` (Drive + Sheet), `ai_sheet.py` (AI 1 lệnh, cache, ngân sách). Test: `.venv/bin/python studio/test_v2.py`, `test_styles.py`, `test_rights.py`, `test_gdrive.py`, `test_ai_sheet.py` (không gọi mạng, không tốn phí).
+Mã nguồn: `app.html`, `static/app.js`, `v2.py` (dịch vụ), `art2d.py` (pipeline 2D), `styles.py` (thư viện kiểu dáng, nhận dáng, tạo khuôn), `sources.py` (tải ảnh/link), `jobstore.py` (SQLite), `rights.py` (bản quyền), `gdrive.py` (Drive + Sheet), `ai_sheet.py` (AI 1 lệnh, cache, ngân sách), `preflight.py` + `suppliers.json` (kiểm tra file in), `listing.py` (bộ ảnh listing). Test: `.venv/bin/python studio/test_v2.py`, `test_styles.py`, `test_rights.py`, `test_gdrive.py`, `test_ai_sheet.py`, `test_sell.py` (không gọi mạng, không tốn phí).
 
 ## Công cụ cũ (Codex)
 

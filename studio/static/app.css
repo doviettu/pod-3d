@@ -141,3 +141,6 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 .msg .shots { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; white-space: normal; }
 .msg .shots img { height: 180px; cursor: zoom-in; background: repeating-conic-gradient(#ccc 0 25%, #fff 0 50%) 0 0 / 16px 16px; }
 .msg .shots a { font-size: 13px; }
+.card h4 { margin: 6px 0 0; font-size: 13px; }
+.card img.mini { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line); cursor: zoom-in; }
+.card .strip { display: flex; gap: 6px; flex-wrap: wrap; }

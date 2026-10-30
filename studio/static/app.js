@@ -718,8 +718,85 @@ function renderJob(job) {
       el('a', { class: 'button', href: '/legacy' }, 'Duyệt chữ/logo, xuất PSD'),
       el('div', { class: 'actions' }, rightsControl(job), approve))));
   }
-  return cards.length ? cards : [el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head))];
+  cards.push(sellCard(job, head));
+  return cards;
 }
+
+// ---------- print check, real photo, listing set ----------
+const PREFLIGHT_LABEL = { ok: 'Đạt', warn: 'Có cảnh báo', error: 'Có lỗi' };
+
+function preflightInfo(job) {
+  const report = (job.extras || {}).preflight;
+  const profile = el('select', { 'aria-label': 'Nhà in' },
+    (state.profiles || []).filter(p => !p.kind || p.kind === job.kind)
+      .map(p => el('option', { value: p.id, selected: report && p.id === report.profile }, p.label)));
+  const run = el('button', { onclick: async () => {
+    run.disabled = true;
+    try { showJob(await api(`/api/v2/jobs/${job.id}/preflight`, { profile: profile.value || undefined }), job.kind); }
+    catch (error) { alert(error.message); run.disabled = false; }
+  } }, report ? 'Kiểm tra lại' : 'Kiểm tra file in');
+  const lines = [];
+  if (report) {
+    lines.push(el('div', {}, el('span', { class: `badge ${{ ok: 'green', warn: 'yellow', error: 'red' }[report.status]}` },
+      `File in: ${PREFLIGHT_LABEL[report.status]}`), ` theo hồ sơ ${report.label}`));
+    for (const f of report.files) {
+      const st = f.stats || {};
+      const facts = [st.size ? `${st.size[0]} × ${st.size[1]} px` : '', st.dpi ? `${st.dpi} DPI` : '', st.mb !== undefined ? `${st.mb} MB` : '']
+        .filter(Boolean).join(' · ');
+      lines.push(el('div', { class: 'muted' }, `${f.label}: ${PREFLIGHT_LABEL[f.status]}${facts ? ' · ' + facts : ''}`));
+      for (const item of f.items) lines.push(el('div', { class: item.level === 'error' ? 'warn' : 'muted' }, '• ' + item.text));
+    }
+    if (!report.gamut_check) lines.push(el('div', { class: 'muted' }, 'Kiểm tra màu CMYK: tắt (đặt file ICC của nhà in vào ~/.config/pod-studio/cmyk.icc để bật).'));
+  }
+  return [...lines, el('div', { class: 'actions' }, profile, run)];
+}
+
+function realPhotoInfo(job) {
+  const photo = (job.extras || {}).real_photo;
+  const input = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', hidden: true, onchange: async () => {
+    const file = input.files[0];
+    if (!file) return;
+    try { showJob(await api(`/api/v2/jobs/${job.id}/real-photo`, { image_base64: await fileToBase64(file) }), job.kind); }
+    catch (error) { alert(error.message); }
+  } });
+  const pick = el('button', { onclick: () => input.click() }, photo ? 'Đổi ảnh thật' : 'Thêm ảnh mẫu thật');
+  return [
+    photo ? el('div', { class: 'row' },
+      el('img', { class: 'mini', src: `/v2files/${job.id}/${photo.file}`, alt: 'Ảnh mẫu thật', onclick: () => openViewer(`/v2files/${job.id}/${photo.file}`, `${job.sku} · ảnh thật`) }),
+      el('span', { class: 'muted' }, `Ảnh mẫu thật ${photo.width} × ${photo.height} px`))
+      : el('div', { class: 'warn' }, 'Chưa có ảnh mẫu thật. Etsy yêu cầu mỗi listing có ít nhất 1 ảnh chụp sản phẩm thật, chưa chỉnh.'),
+    el('div', { class: 'actions' }, input, pick)];
+}
+
+function listingInfo(job) {
+  const set = (job.extras || {}).listing;
+  const build = el('button', { disabled: !(job.extras || {}).real_photo, onclick: async () => {
+    build.disabled = true;
+    build.textContent = 'Đang tạo…';
+    try { showJob(await api(`/api/v2/jobs/${job.id}/listing`, {}), job.kind); }
+    catch (error) { alert(error.message); build.disabled = false; build.textContent = 'Tạo bộ ảnh listing'; }
+  } }, set ? 'Tạo lại bộ ảnh listing' : 'Tạo bộ ảnh listing');
+  const out = [];
+  if (set) {
+    out.push(el('div', { class: 'strip' }, set.files.map(f => el('img', { class: 'mini', src: `/v2files/${job.id}/listing/${f.file}`,
+      alt: f.file, loading: 'lazy', onclick: () => openViewer(`/v2files/${job.id}/listing/${f.file}`, `${job.sku} · ${f.file}`) }))));
+    out.push(el('div', { class: 'muted' }, `${set.files.length} ảnh ${set.edge} × ${set.edge} px, mỗi ảnh dưới 1 MB. Ảnh 01 là ảnh thật.`));
+  }
+  return [...out, el('div', { class: 'actions' }, build,
+    set ? el('a', { class: 'button', href: `/v2files/${job.id}/listing/${set.zip}?download=1` }, 'Tải bộ ảnh (ZIP)') : null)];
+}
+
+function sellCard(job, head) {
+  if (!['review', 'approved'].includes(job.status)) return el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head.cloneNode(true)));
+  return el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head.cloneNode(true),
+    el('h4', {}, 'Kiểm tra trước khi gửi nhà in'), ...preflightInfo(job),
+    el('h4', {}, 'Ảnh mẫu thật và bộ ảnh listing'), ...realPhotoInfo(job), ...listingInfo(job)));
+}
+
+async function loadProfiles() {
+  try { state.profiles = await api('/api/v2/preflight-profiles'); } catch { state.profiles = []; }
+}
+loadProfiles();
 
 // ---------- copyright keywords ----------
 async function loadRights() {

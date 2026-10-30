@@ -17,6 +17,8 @@ import numpy as np
 
 import art2d
 import gdrive
+import listing
+import preflight
 import rights
 import sources
 import styles
@@ -241,6 +243,10 @@ class StudioV2:
             self._screen(job_id, [(side, folder / f'{side}.png') for side in outputs])
             store.update(job_id, status='review', outputs={'sides': outputs},
                          sides='+'.join(outputs))
+            try:
+                self.preflight(job_id)
+            except Exception as exc:  # noqa: BLE001 - the check is advice, never fails the job
+                store.log(job_id, f'Không kiểm tra được file in: {exc}'[:300])
         except Exception as exc:  # noqa: BLE001 - every failure must reach the UI
             store.update(job_id, status='failed', error=str(exc)[:500])
 
@@ -335,6 +341,91 @@ class StudioV2:
             self.drive.enqueue([job_id])
         return self.get(job_id)
 
+    # ---- print check, real photo, listing set ---------------------------------
+    def _set_extra(self, job_id, key, value):
+        with self.lock:
+            extras = self.store.get(job_id)['extras']
+            return self.store.update(job_id, extras={**extras, key: value})
+
+    def _print_files(self, job):
+        """[(label, path, expected size or None)] for the finished print files of a job."""
+        if job['kind'] == '2d':
+            folder = self.jobs_dir / job['id']
+            return [(side, folder / out['file'], None) for side, out in job['outputs'].get('sides', {}).items()]
+        try:
+            sizes = {p['name']: p['size'] for p in self.engine.template_info(job['params'].get('template'))['panels']}
+        except (AttributeError, KeyError, OSError, ValueError, TypeError):
+            sizes = {}
+        files = []
+        for item in job['outputs'].get('artifacts', []):
+            name, url = item.get('name', ''), item.get('url', '')
+            if item.get('kind') == 'image' and name.endswith(' local.png') and url.startswith('/files/'):
+                panel = name[:-len(' local.png')]
+                files.append((panel, self.engine.file_path(job['legacy_id'], unquote(url.split('/', 3)[3])),
+                              sizes.get(panel)))
+        return files
+
+    def preflight_profiles(self):
+        return preflight.catalog()
+
+    def preflight(self, job_id, data=None):
+        job = self.get(job_id)
+        if job['status'] not in ('review', 'approved'):
+            raise ValueError('Chỉ kiểm tra được job đã xử lý xong.')
+        profile = ((data or {}).get('profile') or job['extras'].get('preflight', {}).get('profile')
+                   or ('dtg' if job['kind'] == '2d' else 'aop'))
+        files = self._print_files(job)
+        if not files:
+            raise ValueError('Job chưa có file in để kiểm tra.')
+        report = preflight.run(files, profile)
+        self.store.log(job_id, f'Kiểm tra file in ({report["label"]}): ' +
+                       {'ok': 'đạt', 'warn': 'có cảnh báo', 'error': 'có lỗi'}[report['status']])
+        return self._set_extra(job_id, 'preflight', report)
+
+    def real_photo(self, job_id, data):
+        """Store the seller's own photo of the printed product (Etsy wants one in every listing)."""
+        job = self.get(job_id)
+        raw = sources.from_base64((data or {}).get('image_base64'))
+        if len(raw) > sources.MAX_BYTES:
+            raise ValueError('Ảnh vượt quá giới hạn 32 MB.')
+        suffix, width, height = sources.check_image(raw)
+        if min(width, height) < 1000:
+            raise ValueError(f'Ảnh thật {width} × {height} px quá nhỏ; Etsy nên từ 2000 px, tối thiểu 1000 px.')
+        folder = self.jobs_dir / job_id
+        folder.mkdir(exist_ok=True)
+        for old in folder.glob('real-photo.*'):
+            old.unlink()
+        (folder / ('real-photo' + suffix)).write_bytes(raw)
+        info = {'file': 'real-photo' + suffix, 'width': width, 'height': height,
+                'added': datetime.now().isoformat(timespec='seconds')}
+        self.store.log(job_id, 'Đã thêm ảnh mẫu thật.')
+        return self._set_extra(job_id, 'real_photo', info)
+
+    def listing(self, job_id):
+        job = self.get(job_id)
+        if job['status'] not in ('review', 'approved'):
+            raise ValueError('Chỉ tạo bộ ảnh cho job đã xử lý xong.')
+        folder = self.jobs_dir / job_id
+        photo = job['extras'].get('real_photo')
+        real = folder / photo['file'] if photo else None
+        if job['kind'] == '2d':
+            mockups = sorted(folder.glob('source[12].*'))
+            sides = job['outputs'].get('sides', {})
+            designs = [(side, folder / out['file'], list(listing.SHIRT_COLORS) if side == 'front' else ['trang', 'den'])
+                       for side, out in sides.items()]
+            panels = []
+        else:
+            try:
+                mockups = [self._cached(job.get('source_sha256'))]
+            except ValueError:
+                mockups = []
+            designs = []
+            panels = [(label, path) for label, path, _ in self._print_files(job)]
+        result = listing.build(folder / 'listing', real, mockups, designs, panels)
+        result['built'] = datetime.now().isoformat(timespec='seconds')
+        self.store.log(job_id, f'Đã tạo bộ ảnh listing: {len(result["files"])} ảnh.')
+        return self._set_extra(job_id, 'listing', result)
+
     def file_path(self, job_id, relative):
         if not JOB_ID.fullmatch(job_id or ''):
             raise FileNotFoundError()
@@ -426,6 +517,9 @@ class StudioV2:
             template = job['params'].get('template') or ''
             label = self.engine.style_label(template) if template and hasattr(self.engine, 'style_label') else ''
             style = f'{label} ({template})' if label else template
+        photo = job['extras'].get('real_photo')
+        if photo:
+            files.append((self.jobs_dir / job_id / photo['file'], photo['file']))
         rights_label = {'unknown': 'Chưa kiểm', 'green': 'Xanh', 'yellow': 'Vàng', 'red': 'Đỏ'}[job['rights']]
 
         def row(urls):
