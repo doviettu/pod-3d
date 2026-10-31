@@ -106,6 +106,17 @@ class ProposeTests(unittest.TestCase):
         self.assertTrue(near(r['quads']['Front'], [[0.2, 0.18], [0.8, 0.18], [0.78, 0.98], [0.22, 0.98]], 0.02),
                         r['quads']['Front'])
 
+    def test_sleeve_strip_given_to_the_body_comes_back_by_symmetry(self):
+        h, w = 720, 680
+        body = poly(h, w, [(0.20, 0.18), (0.80, 0.18), (0.78, 0.98), (0.22, 0.98)])
+        sl_left = poly(h, w, [(0.02, 0.22), (0.20, 0.20), (0.18, 0.95), (0.01, 0.95)])
+        sl_right = poly(h, w, [(0.80, 0.20), (0.98, 0.22), (0.99, 0.95), (0.82, 0.95)])
+        short = sl_left & ~poly(h, w, [(0.12, 0.0), (0.3, 0.0), (0.3, 0.6), (0.12, 0.6)])   # SAM missed the shoulder strip
+        found = {'hoodie': [(body | sl_left | sl_right, 0.9)], 'sleeve': [(short, 0.8), (sl_right, 0.8)]}
+        r = pd.propose(np.full((h, w, 3), 200, np.uint8), 'hoodie_pullover', fake(found))
+        self.assertGreater(max(p[0] for p in r['quads']['Right']), 0.17, r['quads']['Right'])
+        self.assertGreater(min(p[0] for p in r['quads']['Front']), 0.17, r['quads']['Front'])
+
     def test_large_photo_is_shrunk_and_far_segments_ignored(self):
         h, w = 2400, 3600
         img = np.full((h, w, 3), 240, np.uint8)

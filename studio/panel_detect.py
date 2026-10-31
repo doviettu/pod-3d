@@ -126,6 +126,29 @@ def _thick(mask):
     return opened if opened is not None else mask
 
 
+def _balance(body, pair, min_iou=0.85):
+    """SAM often gives the strip of sleeve next to the shoulder to the body on one side only. A
+    front or back view is close to mirror-symmetric, so each sleeve also takes the mirror image
+    of the other (inside the garment outline), and the body gives those pixels up. In place;
+    skipped when the outline is not symmetric enough to trust the mirror."""
+    garment = body | pair[0] | pair[1]
+    xs = np.nonzero(garment.any(0))[0]
+    centre = (xs.min() + xs.max()) / 2
+    flip = np.float32([[-1, 0, 2 * centre], [0, 1, 0]])
+    h, w = garment.shape
+
+    def mirror(m):
+        return cv2.warpAffine(m.astype(np.uint8), flip, (w, h), flags=cv2.INTER_NEAREST) > 0
+
+    g2 = mirror(garment)
+    if (garment & g2).sum() < min_iou * (garment | g2).sum():
+        return
+    grown = [pair[0] | (mirror(pair[1]) & garment), pair[1] | (mirror(pair[0]) & garment)]
+    for s, g in zip(pair, grown):
+        s |= g
+    body &= ~(pair[0] | pair[1])
+
+
 def assign(bodies, sleeves, hoods, zip_front=False):
     """{panel: (mask, role)}. Views are read left to right: the first (largest two) body is the
     front, the next the back, and a photo with one view is a front. A sleeve belongs to the body
@@ -136,6 +159,15 @@ def assign(bodies, sleeves, hoods, zip_front=False):
     views = sorted(sorted(bodies, key=lambda b: -int(b.sum()))[:2], key=_cx)
     front = views[0] if views else None
     back = views[1] if len(views) > 1 else None
+    by_view = {0: [], 1: []}
+    for s in sleeves:
+        if views:
+            i = min(range(len(views)), key=lambda v: abs(_cx(s) - _cx(views[v])))
+            by_view[i].append(s)
+    for i, view in enumerate(views):
+        by_view[i] = sorted(by_view[i], key=lambda s: -int(s.sum()))[:2]
+        if len(by_view[i]) == 2:
+            _balance(view, by_view[i])
     if zip_front and front is not None:
         mid = int(round(_cx(front)))
         left, right = front.copy(), front.copy()
@@ -148,13 +180,8 @@ def assign(bodies, sleeves, hoods, zip_front=False):
         out['Front'] = (front, 'body')
     if back is not None:
         out['Back'] = (back, 'body')
-    by_view = {0: [], 1: []}
-    for s in sleeves:
-        if views:
-            i = min(range(len(views)), key=lambda v: abs(_cx(s) - _cx(views[v])))
-            by_view[i].append(s)
     for i, mirrored in ((0, False), (1, True)):
-        own = sorted(by_view[i], key=lambda s: -int(s.sum()))[:2]
+        own = by_view[i]
         if not own or (i == 1 and ('Left' in out or 'Right' in out or 'Sleeve' in out)):
             continue
         out.setdefault('Sleeve', (own[0], 'sleeve'))
