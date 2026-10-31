@@ -216,7 +216,7 @@ def propose(bgr, style_id, segment, debug=None):
     found = segment(np.ascontiguousarray(small[..., ::-1]), prompts)
 
     if debug is not None:
-        debug.update(found)
+        debug['raw'] = found
 
     def parts(prompt):
         return [m for m in (_clean(mask) for mask, score in found.get(prompt, []) if score >= SCORE) if m is not None]
@@ -230,6 +230,8 @@ def propose(bgr, style_id, segment, debug=None):
 
     names = [n for n, _, kind in style['panels'] if kind == 'main' and n in ROLE]
     chosen = assign(bodies, sleeves, hoods, zip_front='FrontLeft' in names)
+    if debug is not None:
+        debug['panels'] = {n: m for n, (m, _) in chosen.items() if n in names}
     quads = {}
     for name, (mask, role) in chosen.items():
         if name in names:
@@ -252,13 +254,6 @@ def overlay(bgr, quads):
     return out
 
 
-def raw_size(raw, bgr):
-    for regions in raw.values():
-        if regions:
-            return regions[0][0].shape[::-1]
-    return bgr.shape[1::-1]
-
-
 def main(argv=None):
     ap = argparse.ArgumentParser(description='Thử SAM 3 tìm các mảnh áo trên một ảnh mockup.')
     ap.add_argument('image')
@@ -279,15 +274,18 @@ def main(argv=None):
         print('Chưa thấy:', ', '.join(result['missing']))
     print('Số vùng SAM 3 trả về:', result['counts'])
     print('Ảnh kiểm tra:', out)
-    # Every raw SAM 3 region in its own colour (garment blue, sleeve green, hood red), to tune by.
-    small = cv2.resize(bgr, raw_size(raw, bgr), interpolation=cv2.INTER_AREA)
-    tint = small.astype(np.float32)
-    for prompt, colour in zip(raw, ((255, 120, 0), (0, 200, 0), (0, 0, 255))):
-        for mask, score in raw[prompt]:
-            tint[mask] = tint[mask] * 0.6 + np.float32(colour) * 0.4
+    # The region each panel ends up with (after the cuts and the mirror fix), one colour each.
+    panels = raw.get('panels', {})
+    size = next(iter(panels.values())).shape[::-1] if panels else bgr.shape[1::-1]
+    tint = cv2.resize(bgr, size, interpolation=cv2.INTER_AREA).astype(np.float32)
+    palette = {'Front': (255, 120, 0), 'FrontLeft': (255, 120, 0), 'FrontRight': (200, 60, 160),
+               'Back': (200, 160, 0), 'Hood': (0, 0, 255), 'Left': (0, 200, 0), 'Right': (0, 200, 200),
+               'Sleeve': (0, 200, 0)}
+    for name, mask in panels.items():
+        tint[mask] = tint[mask] * 0.55 + np.float32(palette.get(name, (128, 128, 128))) * 0.45
     masks = Path(a.image).with_name(Path(a.image).stem + '.sam3-vung.jpg')
     cv2.imwrite(str(masks), tint.astype(np.uint8))
-    print('Ảnh các vùng SAM 3:', masks)
+    print('Ảnh vùng từng mảnh:', masks)
 
 
 if __name__ == '__main__':
