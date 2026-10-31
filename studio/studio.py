@@ -7,6 +7,7 @@ import hashlib
 import html
 import io
 import json
+import os
 import re
 import sys
 import threading
@@ -840,7 +841,12 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError("Yêu cầu phải là một đối tượng JSON.")
             engine = self.server.engine
-            if self.path == "/api/claude/chat":
+            if self.path == "/api/restart":
+                if is_online(self):
+                    raise ValueError("Chỉ khởi động lại được từ trình duyệt trên máy Mac.")
+                self.send_json(202, {"ok": True})
+                restart_soon(self.server)
+            elif self.path == "/api/claude/chat":
                 self.claude_chat(data)
             elif self.path == "/api/v2/inspect":
                 self.send_json(200, self.server.v2.inspect(data))
@@ -919,6 +925,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": message[:500]})
 
 
+def restart_soon(server):
+    """Stop serving once the reply is out; main() then lets running jobs finish and starts the
+    same command again in this process (works under launchd and from a Terminal window)."""
+    server.restart = True
+    threading.Timer(0.3, server.shutdown).start()
+
+
 def main():
     parser = argparse.ArgumentParser(description="POD Studio — giao diện local trên Mac")
     parser.add_argument("--port", type=int, default=8765)
@@ -947,6 +960,9 @@ def main():
     finally:
         server.server_close()
         engine.executor.shutdown(wait=True)
+    if getattr(server, 'restart', False):
+        print("POD Studio: khởi động lại…", flush=True)
+        os.execv(sys.executable, [sys.executable, *sys.argv])
 
 
 if __name__ == "__main__":

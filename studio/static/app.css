@@ -14,6 +14,8 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 syst
 .tabs button { border: 0; background: none; color: var(--muted); padding: 8px 14px; border-radius: 8px; font: inherit; cursor: pointer; }
 .tabs button[aria-selected="true"] { background: var(--bg); color: var(--text); font-weight: 650; }
 .legacy { margin-left: auto; color: var(--muted); font-size: 13px; }
+.restart { margin-left: auto; font-size: 13px; padding: 4px 10px; }
+.restart + .legacy { margin-left: 12px; }
 main { max-width: 1280px; margin: 0 auto; padding: 24px 16px 64px; }
 .grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
 @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }

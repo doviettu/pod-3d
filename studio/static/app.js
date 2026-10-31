@@ -1317,3 +1317,28 @@ $('#mk-delete').addEventListener('click', async () => {
   try { await api(`/api/v2/mockups/${p.id}/delete`, {}); await loadMockups(); } catch (error) { alert(error.message); }
 });
 $('.tabs button[data-tab="mockup"]').addEventListener('click', () => loadMockups());
+
+// ---------- restart ----------
+// The server finishes running jobs, then starts itself again; the page reloads once it answers.
+$('#restart').addEventListener('click', async event => {
+  if (!confirm('Khởi động lại POD Studio? Việc đang chạy sẽ được làm xong trước rồi mới tắt.')) return;
+  const button = event.target;
+  button.disabled = true;
+  button.textContent = 'Đang khởi động lại…';
+  try {
+    await api('/api/restart', {});
+  } catch (error) {
+    alert(error.message);
+    button.disabled = false;
+    button.textContent = 'Khởi động lại';
+    return;
+  }
+  await new Promise(r => setTimeout(r, 1500));
+  for (let i = 0; i < 300; i++) {
+    try {
+      if ((await fetch('/api/status', { cache: 'no-store' })).ok) { location.reload(); return; }
+    } catch (_) { /* still down */ }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  button.textContent = 'Chưa lên lại, hãy chạy restart.command';
+});
