@@ -498,6 +498,22 @@ function markingTools() {
         } }, `${on ? '' : '+ '}${p.name}`);
     })),
     el('div', { class: 'row' }, label,
+      el('button', { type: 'button', title: 'SAM 3 chạy trên Mac, lần đầu tải model ~3 GB', onclick: async event => {
+        event.target.disabled = true;
+        note('3d', 'SAM 3 đang tìm các mảnh (khoảng 20–60 giây)…');
+        try {
+          const r = await api('/api/v2/templates/auto-quads', { source_id: state['3d'].sources[0].source_id, style: m.style });
+          for (const [name, quad] of Object.entries(r.quads)) m.quads[name] = quad;
+          if (r.found.length) m.active = r.found[0];
+          renderSources('3d');
+          note('3d', r.found.length
+            ? `SAM 3 đã đặt ${r.found.join(', ')}.${r.missing.length ? ' Chưa thấy ' + r.missing.join(', ') + ': đánh dấu tay.' : ''} Hãy kiểm tra và kéo lại góc nếu lệch.`
+            : 'SAM 3 không tìm được mảnh nào trên ảnh này; hãy đánh dấu tay.', !r.found.length);
+        } catch (error) {
+          note('3d', error.message, true);
+          event.target.disabled = false;
+        }
+      } }, 'Tự tìm mảnh'),
       el('button', { type: 'button', onclick: () => { state['3d'].marking = null; renderSources('3d'); } }, 'Huỷ'),
       el('button', { type: 'button', class: 'accent', onclick: async event => {
         const names = Object.keys(m.quads);
@@ -718,8 +734,105 @@ function renderJob(job) {
       el('a', { class: 'button', href: '/legacy' }, 'Duyệt chữ/logo, xuất PSD'),
       el('div', { class: 'actions' }, rightsControl(job), approve))));
   }
-  return cards.length ? cards : [el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head))];
+  cards.push(sellCard(job, head));
+  return cards;
 }
+
+// ---------- print check, real photo, listing set ----------
+const PREFLIGHT_LABEL = { ok: 'Đạt', warn: 'Có cảnh báo', error: 'Có lỗi' };
+
+function preflightInfo(job) {
+  const report = (job.extras || {}).preflight;
+  const profile = el('select', { 'aria-label': 'Nhà in' },
+    (state.profiles || []).filter(p => !p.kind || p.kind === job.kind)
+      .map(p => el('option', { value: p.id, selected: report && p.id === report.profile }, p.label)));
+  const run = el('button', { onclick: async () => {
+    run.disabled = true;
+    try { showJob(await api(`/api/v2/jobs/${job.id}/preflight`, { profile: profile.value || undefined }), job.kind); }
+    catch (error) { alert(error.message); run.disabled = false; }
+  } }, report ? 'Kiểm tra lại' : 'Kiểm tra file in');
+  const lines = [];
+  if (report) {
+    lines.push(el('div', {}, el('span', { class: `badge ${{ ok: 'green', warn: 'yellow', error: 'red' }[report.status]}` },
+      `File in: ${PREFLIGHT_LABEL[report.status]}`), ` theo hồ sơ ${report.label}`));
+    for (const f of report.files) {
+      const st = f.stats || {};
+      const facts = [st.size ? `${st.size[0]} × ${st.size[1]} px` : '', st.dpi ? `${st.dpi} DPI` : '', st.mb !== undefined ? `${st.mb} MB` : '']
+        .filter(Boolean).join(' · ');
+      lines.push(el('div', { class: 'muted' }, `${f.label}: ${PREFLIGHT_LABEL[f.status]}${facts ? ' · ' + facts : ''}`));
+      for (const item of f.items) lines.push(el('div', { class: item.level === 'error' ? 'warn' : 'muted' }, '• ' + item.text));
+    }
+    if (!report.gamut_check) lines.push(el('div', { class: 'muted' }, 'Kiểm tra màu CMYK: tắt (đặt file ICC của nhà in vào ~/.config/pod-studio/cmyk.icc để bật).'));
+  }
+  return [...lines, el('div', { class: 'actions' }, profile, run)];
+}
+
+function realPhotoInfo(job) {
+  const photo = (job.extras || {}).real_photo;
+  const input = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', hidden: true, onchange: async () => {
+    const file = input.files[0];
+    if (!file) return;
+    try { showJob(await api(`/api/v2/jobs/${job.id}/real-photo`, { image_base64: await fileToBase64(file) }), job.kind); }
+    catch (error) { alert(error.message); }
+  } });
+  const pick = el('button', { onclick: () => input.click() }, photo ? 'Đổi ảnh thật' : 'Thêm ảnh mẫu thật');
+  return [
+    photo ? el('div', { class: 'row' },
+      el('img', { class: 'mini', src: `/v2files/${job.id}/${photo.file}`, alt: 'Ảnh mẫu thật', onclick: () => openViewer(`/v2files/${job.id}/${photo.file}`, `${job.sku} · ảnh thật`) }),
+      el('span', { class: 'muted' }, `Ảnh mẫu thật ${photo.width} × ${photo.height} px`))
+      : el('div', { class: 'warn' }, 'Chưa có ảnh mẫu thật. Etsy yêu cầu mỗi listing có ít nhất 1 ảnh chụp sản phẩm thật, chưa chỉnh.'),
+    el('div', { class: 'actions' }, input, pick)];
+}
+
+function listingInfo(job) {
+  const set = (job.extras || {}).listing;
+  const build = el('button', { disabled: !(job.extras || {}).real_photo, onclick: async () => {
+    build.disabled = true;
+    build.textContent = 'Đang tạo…';
+    try { showJob(await api(`/api/v2/jobs/${job.id}/listing`, {}), job.kind); }
+    catch (error) { alert(error.message); build.disabled = false; build.textContent = 'Tạo bộ ảnh listing'; }
+  } }, set ? 'Tạo lại bộ ảnh listing' : 'Tạo bộ ảnh listing');
+  const out = [];
+  if (set) {
+    out.push(el('div', { class: 'strip' }, set.files.map(f => el('img', { class: 'mini', src: `/v2files/${job.id}/listing/${f.file}`,
+      alt: f.file, loading: 'lazy', onclick: () => openViewer(`/v2files/${job.id}/listing/${f.file}`, `${job.sku} · ${f.file}`) }))));
+    out.push(el('div', { class: 'muted' }, `${set.files.length} ảnh ${set.edge} × ${set.edge} px, mỗi ảnh dưới 1 MB. Ảnh 01 là ảnh thật.`));
+  }
+  return [...out, el('div', { class: 'actions' }, build,
+    set ? el('a', { class: 'button', href: `/v2files/${job.id}/listing/${set.zip}?download=1` }, 'Tải bộ ảnh (ZIP)') : null)];
+}
+
+function mockupInfo(job) {
+  if (job.kind !== '2d') return [];
+  const made = (job.extras || {}).mockups;
+  const groups = state.mockupGroups || [];
+  const group = el('select', { 'aria-label': 'Nhóm mockup' }, groups.map(g => el('option', { value: g, selected: made && made.group === g }, g)));
+  const run = el('button', { disabled: !groups.length, onclick: async () => {
+    run.disabled = true;
+    run.textContent = 'Đang render…';
+    try { showJob(await api(`/api/v2/jobs/${job.id}/mockups`, { group: group.value }), job.kind); }
+    catch (error) { alert(error.message); run.disabled = false; run.textContent = 'Render mockup'; }
+  } }, 'Render mockup');
+  return [el('h4', {}, 'Mockup bán hàng'),
+    made ? el('div', { class: 'strip' }, made.files.map(f => el('img', { class: 'mini', src: `/v2files/${job.id}/${f.file}`, alt: f.name,
+      title: f.name, onclick: () => openViewer(`/v2files/${job.id}/${f.file}`, `${job.sku} · ${f.name}`) }))) : null,
+    groups.length ? el('div', { class: 'actions' }, group, run)
+      : el('div', { class: 'muted' }, 'Chưa có ảnh trơn nào: thêm ở tab Mockup bán hàng.')];
+}
+
+function sellCard(job, head) {
+  if (!['review', 'approved'].includes(job.status)) return el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head.cloneNode(true)));
+  return el('div', { class: 'card', 'data-job': job.id }, el('div', { class: 'body' }, head.cloneNode(true),
+    el('h4', {}, 'Kiểm tra trước khi gửi nhà in'), ...preflightInfo(job),
+    ...mockupInfo(job),
+    el('h4', {}, 'Ảnh mẫu thật và bộ ảnh listing'), ...realPhotoInfo(job), ...listingInfo(job)));
+}
+
+async function loadProfiles() {
+  try { state.profiles = await api('/api/v2/preflight-profiles'); } catch { state.profiles = []; }
+}
+loadProfiles();
+api('/api/v2/mockups').then(r => { state.mockupGroups = r.groups; }).catch(() => {});
 
 // ---------- copyright keywords ----------
 async function loadRights() {
@@ -976,4 +1089,377 @@ $('#chat-new').addEventListener('click', () => {
   chat.chat = null;
   $('#chat-log').replaceChildren();
   $('#chat-prompt').focus();
+});
+
+// ---------- sales mockups ----------
+const mk = { presets: [], current: null, zone: null, view: 'zone', art: null, preview: null };
+
+function mkPreset() { return mk.presets.find(p => p.id === $('#mk-preset').value); }
+
+function zoneHandles(zone) {
+  if (zone.type === 'rect') { const [x, y, w, h] = zone.box; return [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]; }
+  if (zone.type === 'cylinder') { const [x0, y0, x1, y1] = zone.box; return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]]; }
+  return zone.points;
+}
+
+function setHandle(zone, i, [x, y]) {
+  if (zone.type === 'quad' || zone.type === 'mesh') { zone.points[i] = [x, y]; return; }
+  const pts = zoneHandles(zone);
+  const [ox, oy] = pts[(i + 2) % 4];   // the opposite corner stays put
+  const box = [Math.min(x, ox), Math.min(y, oy), Math.max(x, ox), Math.max(y, oy)];
+  zone.box = zone.type === 'rect' ? [box[0], box[1], box[2] - box[0], box[3] - box[1]] : box;
+}
+
+function moveZone(zone, start, dx, dy) {
+  if (zone.type === 'rect') zone.box = [start.box[0] + dx, start.box[1] + dy, start.box[2], start.box[3]];
+  else if (zone.type === 'cylinder') zone.box = [start.box[0] + dx, start.box[1] + dy, start.box[2] + dx, start.box[3] + dy];
+  else zone.points = start.points.map(([x, y]) => [x + dx, y + dy]);
+}
+
+function outline(zone) {
+  const pts = zoneHandles(zone);
+  if (zone.type !== 'mesh') return [pts];
+  const lines = [];
+  for (let j = 0; j < 4; j++) lines.push(pts.slice(j * 4, j * 4 + 4));
+  for (let i = 0; i < 4; i++) lines.push([0, 1, 2, 3].map(j => pts[j * 4 + i]));
+  return lines;
+}
+
+function defaultZone(type, old) {
+  const pts = zoneHandles(old);
+  const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+  const [x0, y0, x1, y1] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  if (type === 'rect') return { type, box: [x0, y0, x1 - x0, y1 - y0] };
+  if (type === 'cylinder') return { type, box: [x0, y0, x1, y1], wrap: 150, sag: 0.05, taper: 1 };
+  if (type === 'quad') return { type, points: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] };
+  const points = [];
+  for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) points.push([x0 + (x1 - x0) * i / 3, y0 + (y1 - y0) * j / 3]);
+  return { type, points };
+}
+
+function mkStage() {
+  const p = mkPreset();
+  const stage = el('div', { class: 'stage marking mk-stage' }, el('img', { src: p.blank_url, alt: p.name, draggable: 'false' }));
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 1 1');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.classList.add('quads');
+  const draw = () => {
+    svg.replaceChildren(...outline(mk.zone).map((line, n) => {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', n === 0 && mk.zone.type !== 'mesh' ? 'polygon' : 'polyline');
+      node.setAttribute('points', line.map(q => q.join(',')).join(' '));
+      node.classList.add('active');
+      node.dataset.zone = '1';
+      return node;
+    }));
+    $$('.qhandle', stage).forEach(h => h.remove());
+    if (!$('#mk-lock').checked) zoneHandles(mk.zone).forEach((q, i) => stage.append(el('i', { class: 'qhandle', 'data-corner': String(i),
+      style: `left:${q[0] * 100}%;top:${q[1] * 100}%` })));
+  };
+  stage.querySelector('img').after(svg);
+  draw();
+  let drag = null;
+  const point = event => {
+    const r = stage.getBoundingClientRect();
+    return [Math.min(1.2, Math.max(-0.2, (event.clientX - r.left) / r.width)), Math.min(1.2, Math.max(-0.2, (event.clientY - r.top) / r.height))];
+  };
+  stage.addEventListener('dragstart', event => event.preventDefault());
+  stage.addEventListener('pointerdown', event => {
+    if ($('#mk-lock').checked) return;
+    const t = event.target;
+    if (t.dataset.corner === undefined && !t.dataset.zone) return;
+    event.preventDefault();
+    drag = { corner: t.dataset.corner !== undefined ? Number(t.dataset.corner) : null, start: point(event), zone: JSON.parse(JSON.stringify(mk.zone)) };
+    stage.setPointerCapture(event.pointerId);
+  });
+  stage.addEventListener('pointermove', event => {
+    if (!drag) return;
+    const [x, y] = point(event);
+    if (drag.corner !== null) setHandle(mk.zone, drag.corner, [x, y]);
+    else moveZone(mk.zone, drag.zone, x - drag.start[0], y - drag.start[1]);
+    draw();
+  });
+  const finish = () => { drag = null; };
+  stage.addEventListener('pointerup', finish);
+  stage.addEventListener('pointercancel', finish);
+  return stage;
+}
+
+function mkOptions() {
+  return { fold: Number($('#mk-fold').value), light: Number($('#mk-light').value), texture: Number($('#mk-texture').value), fit: $('#mk-fit').value };
+}
+
+function mkZone() {
+  const zone = JSON.parse(JSON.stringify(mk.zone));
+  if (zone.type === 'cylinder') Object.assign(zone, { wrap: Number($('#mk-wrap').value), sag: Number($('#mk-sag').value), taper: Number($('#mk-taper').value) });
+  return zone;
+}
+
+function mkArtBody() {
+  if (mk.art) return { art_base64: mk.art };
+  const [job_id, side] = ($('#mk-job').value || '').split(':');
+  return job_id ? { job_id, side } : null;
+}
+
+async function mkRender(mode) {
+  const p = mkPreset();
+  const art = mkArtBody();
+  if (!p || !art) { $('#mk-note').textContent = 'Hãy chọn art: một job 2D hoặc file PNG.'; return null; }
+  $('#mk-note').textContent = 'Đang render…';
+  try {
+    const r = await api(`/api/v2/mockups/${p.id}/preview`, { ...art, zone: mkZone(), options: mkOptions(), mode });
+    $('#mk-note').textContent = '';
+    return r.url;
+  } catch (error) { $('#mk-note').textContent = error.message; return null; }
+}
+
+async function mkShow() {
+  const host = $('#mk-view');
+  const p = mkPreset();
+  $$('#mk-views button').forEach(b => b.classList.toggle('active', b.dataset.view === mk.view));
+  if (!p) { host.replaceChildren(el('p', { class: 'muted' }, 'Thêm một ảnh sản phẩm trơn ở cột bên phải để bắt đầu.')); return; }
+  if (mk.view === 'zone') { host.replaceChildren(mkStage()); return; }
+  if (mk.view === 'maps') {
+    const maps = { mask: 'Mask sản phẩm', light: 'Ánh sáng', disp: 'Nếp vải', texture: 'Vân vải' };
+    host.replaceChildren(el('div', { class: 'mk-maps' }, Object.entries(maps).map(([k, label]) =>
+      el('figure', {}, el('img', { src: `/api/v2/mockups/${p.id}/diag/${k}.png`, alt: label, loading: 'lazy' }), el('figcaption', { class: 'muted' }, label)))));
+    return;
+  }
+  const url = await mkRender(mk.view === 'flat' ? 'flat' : 'render');
+  if (!url) return;
+  if (mk.view !== 'compare') {
+    host.replaceChildren(el('img', { class: 'mk-result', src: url, alt: 'Kết quả', onclick: () => openViewer(url, p.name) }));
+    return;
+  }
+  const after = el('img', { src: url, alt: 'Sau' });
+  const clip = el('div', { class: 'mk-after' }, after);
+  const slider = el('input', { type: 'range', min: '0', max: '100', value: '50', 'aria-label': 'Trước / sau', oninput: () => { clip.style.width = slider.value + '%'; } });
+  host.replaceChildren(el('div', { class: 'mk-compare' }, el('img', { src: p.blank_url, alt: 'Trước' }), clip), slider);
+  clip.style.width = '50%';
+  after.style.width = host.clientWidth + 'px';
+}
+
+function mkLoadPreset() {
+  const p = mkPreset();
+  mk.zone = p ? JSON.parse(JSON.stringify(p.zone)) : null;
+  if (p) {
+    $('#mk-zone').value = p.zone.type;
+    const o = p.options;
+    $('#mk-fold').value = o.fold; $('#mk-light').value = o.light; $('#mk-texture').value = o.texture; $('#mk-fit').value = o.fit;
+    $('#mk-wrap').value = p.zone.wrap || 150; $('#mk-sag').value = p.zone.sag || 0.05; $('#mk-taper').value = p.zone.taper || 1;
+    $('#mk-wrap-v').textContent = $('#mk-wrap').value;
+  }
+  $('#mk-cyl').hidden = !p || p.zone.type !== 'cylinder';
+  mkShow();
+}
+
+async function loadMockups(select) {
+  try {
+    const [lib, jobs] = await Promise.all([api('/api/v2/mockups'), api('/api/v2/jobs?kind=2d')]);
+    mk.presets = lib.presets;
+    const keep = select || $('#mk-preset').value;
+    $('#mk-preset').replaceChildren(...lib.groups.map(g => el('optgroup', { label: g },
+      lib.presets.filter(p => p.group === g).map(p => el('option', { value: p.id, selected: p.id === keep }, p.name)))));
+    const done = jobs.filter(j => ['review', 'approved'].includes(j.status) && j.outputs.sides);
+    const jobKeep = $('#mk-job').value;
+    $('#mk-job').replaceChildren(el('option', { value: '' }, '— chọn job —'),
+      ...done.flatMap(j => Object.keys(j.outputs.sides).map(side => el('option', { value: `${j.id}:${side}`, selected: `${j.id}:${side}` === jobKeep }, `${j.sku} · ${SIDE_LABEL[side]}`))));
+    state.mockupGroups = lib.groups;
+    mkLoadPreset();
+  } catch (error) { $('#mk-note').textContent = error.message; }
+}
+
+$$('#mk-views button').forEach(b => b.addEventListener('click', () => { mk.view = b.dataset.view; mkShow(); }));
+$('#mk-preset').addEventListener('change', mkLoadPreset);
+$('#mk-lock').addEventListener('change', () => mk.view === 'zone' && mkShow());
+$('#mk-zone').addEventListener('change', () => {
+  if (!mk.zone) return;
+  mk.zone = defaultZone($('#mk-zone').value, mk.zone);
+  $('#mk-cyl').hidden = mk.zone.type !== 'cylinder';
+  mk.view = 'zone';
+  mkShow();
+});
+$('#mk-wrap').addEventListener('input', () => { $('#mk-wrap-v').textContent = $('#mk-wrap').value; });
+$('#mk-art').addEventListener('change', async () => {
+  const file = $('#mk-art').files[0];
+  mk.art = file ? await fileToBase64(file) : null;
+  if (file) $('#mk-job').value = '';
+});
+$('#mk-job').addEventListener('change', () => { if ($('#mk-job').value) { mk.art = null; $('#mk-art').value = ''; } });
+$('#mk-render').addEventListener('click', () => { mk.view = mk.view === 'zone' || mk.view === 'maps' ? 'render' : mk.view; mkShow(); });
+$('#mk-save').addEventListener('click', async () => {
+  const p = mkPreset();
+  if (!p) return;
+  try {
+    await api(`/api/v2/mockups/${p.id}`, { zone: mkZone(), options: mkOptions() });
+    await loadMockups(p.id);
+    $('#mk-note').textContent = 'Đã lưu vùng in và thông số.';
+  } catch (error) { $('#mk-note').textContent = error.message; }
+});
+$('#mk-add').addEventListener('click', async () => {
+  const file = $('#mk-file').files[0];
+  if (!file) { $('#mk-note').textContent = 'Hãy chọn ảnh sản phẩm trơn.'; return; }
+  $('#mk-add').disabled = true;
+  $('#mk-note').textContent = 'Đang nướng bản đồ nếp vải và ánh sáng…';
+  try {
+    const p = await api('/api/v2/mockups', { image_base64: await fileToBase64(file), group: $('#mk-group').value,
+      name: $('#mk-name').value || file.name.replace(/\.[^.]+$/, ''), kind: $('#mk-kind').value });
+    $('#mk-file').value = '';
+    mk.view = 'zone';
+    await loadMockups(p.id);
+    $('#mk-note').textContent = 'Đã thêm. Kéo các góc để đặt vùng in, chọn art rồi bấm Render thử, xong bấm Lưu.';
+  } catch (error) { $('#mk-note').textContent = error.message; }
+  $('#mk-add').disabled = false;
+});
+$('#mk-delete').addEventListener('click', async () => {
+  const p = mkPreset();
+  if (!p || !confirm(`Xoá ảnh trơn "${p.name}" khỏi nhóm "${p.group}"?`)) return;
+  try { await api(`/api/v2/mockups/${p.id}/delete`, {}); await loadMockups(); } catch (error) { alert(error.message); }
+});
+$('.tabs button[data-tab="mockup"]').addEventListener('click', () => loadMockups());
+
+// ---------- restart ----------
+// The server finishes running jobs, then starts itself again; the page reloads once it answers.
+$('#restart').addEventListener('click', async event => {
+  if (!confirm('Khởi động lại POD Studio? Việc đang chạy sẽ được làm xong trước rồi mới tắt.')) return;
+  const button = event.target;
+  button.disabled = true;
+  button.textContent = 'Đang khởi động lại…';
+  try {
+    await api('/api/restart', {});
+  } catch (error) {
+    alert(error.message);
+    button.disabled = false;
+    button.textContent = 'Khởi động lại';
+    return;
+  }
+  await new Promise(r => setTimeout(r, 1500));
+  for (let i = 0; i < 300; i++) {
+    try {
+      if ((await fetch('/api/status', { cache: 'no-store' })).ok) { location.reload(); return; }
+    } catch (_) { /* still down */ }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  button.textContent = 'Chưa lên lại, hãy chạy restart.command';
+});
+
+// ---------- redesign ----------
+// Step 1: split a design into layers, mark keep / change / remove, export a brief + Skills.
+const rd = { scene: null, active: null, choices: {}, art: null, out: null };
+const RD_TYPE = { text: 'Chữ', graphic: 'Hình', object: 'Đối tượng' };
+
+async function loadRedesign() {
+  try {
+    const [jobs, skills] = await Promise.all([api('/api/v2/jobs?kind=2d'), api('/api/v2/skills')]);
+    const keep = $('#rd-job').value;
+    const done = jobs.filter(j => ['review', 'approved'].includes(j.status) && j.outputs.sides);
+    $('#rd-job').replaceChildren(el('option', { value: '' }, '— chọn job —'),
+      ...done.flatMap(j => Object.keys(j.outputs.sides).map(side => el('option', { value: `${j.id}:${side}`, selected: `${j.id}:${side}` === keep }, `${j.sku} · ${SIDE_LABEL[side]}`))));
+    if (!$('#rd-skills').children.length) {
+      $('#rd-skills').replaceChildren(el('p', { class: 'muted' }, 'Skill gửi kèm:'),
+        ...skills.skills.map(s => el('label', { class: 'check', title: s.summary },
+          el('input', { type: 'checkbox', value: s.id, checked: true }), ` ${s.title}`)));
+    }
+  } catch (error) { note('rd', error.message, true); }
+}
+$('.tabs button[data-tab="redesign"]').addEventListener('click', loadRedesign);
+
+$('#rd-file').addEventListener('change', async () => {
+  const file = $('#rd-file').files[0];
+  rd.art = file ? await fileToBase64(file) : null;
+  if (file) $('#rd-job').value = '';
+});
+$('#rd-job').addEventListener('change', () => { if ($('#rd-job').value) { rd.art = null; $('#rd-file').value = ''; } });
+
+$('#rd-analyze').addEventListener('click', async event => {
+  const [job_id, side] = ($('#rd-job').value || '').split(':');
+  if (!rd.art && !job_id) { note('rd', 'Hãy chọn một job 2D hoặc tải lên file thiết kế.', true); return; }
+  const body = rd.art ? { art_base64: rd.art, name: $('#rd-file').files[0]?.name } : { job_id, side };
+  body.sam3 = $('#rd-sam').checked;
+  event.target.disabled = true;
+  note('rd', body.sam3 ? 'Đang tách lớp (có SAM 3, khoảng 20–60 giây)…' : 'Đang tách lớp…');
+  try {
+    rd.scene = await api('/api/v2/redesign', body);
+    rd.choices = {};
+    rd.active = null;
+    $('#rd-out').hidden = true;
+    rdRender();
+    const s = rd.scene;
+    note('rd', `Tách được ${s.layers.length} lớp.${s.ocr ? '' : ' Chưa đọc chữ (cài Tesseract trên Mac: brew install tesseract).'}`);
+  } catch (error) {
+    note('rd', error.message, true);
+  } finally {
+    event.target.disabled = false;
+  }
+});
+
+function rdChoice(id) {
+  return rd.choices[id] || (rd.choices[id] = { action: 'keep', note: '' });
+}
+
+function rdRender() {
+  const s = rd.scene;
+  if (!s) return;
+  const [w, h] = s.size;
+  $('#rd-info').textContent = `${s.name || s.id} · ${w} × ${h} px · ${s.background ? 'nền đặc' : 'nền trong suốt'} · phủ mực ${s.ink_pct}%`;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.classList.add('rd-boxes');
+  for (const layer of s.layers) {
+    const [x, y, bw, bh] = layer.bbox;
+    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    Object.entries({ x, y, width: bw, height: bh }).forEach(([k, v]) => r.setAttribute(k, v));
+    r.setAttribute('class', `rd-box ${rdChoice(layer.id).action}${rd.active === layer.id ? ' active' : ''}`);
+    r.addEventListener('click', () => { rd.active = layer.id; rdRender(); });
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', x + 4); t.setAttribute('y', y + Math.max(14, w / 45));
+    t.setAttribute('font-size', Math.max(12, w / 45));
+    t.textContent = layer.id;
+    svg.append(r, t);
+  }
+  $('#rd-stage').replaceChildren(el('img', { src: s.source_url, alt: 'Thiết kế' }), svg);
+  $('#rd-palette').replaceChildren(...s.palette.map(p => el('span', { class: 'swatch', title: `${p.hex} · ${p.pct}%`, style: `background:${p.hex}` })),
+    el('span', { class: 'muted' }, ' bảng màu chính'));
+  $('#rd-layers').replaceChildren(...s.layers.map(layer => {
+    const c = rdChoice(layer.id);
+    const noteBox = el('input', { type: 'text', maxlength: '500', placeholder: 'Sửa thế nào? Ví dụ: đổi thành bí ngô', value: c.note,
+      oninput: e => { c.note = e.target.value; } });
+    noteBox.hidden = c.action !== 'change';
+    return el('div', { class: `rd-layer${rd.active === layer.id ? ' active' : ''}`, onclick: () => { if (rd.active !== layer.id) { rd.active = layer.id; rdRender(); } } },
+      el('img', { src: layer.url, alt: layer.label, loading: 'lazy' }),
+      el('div', { class: 'grow' },
+        el('b', {}, `${layer.id} · ${RD_TYPE[layer.type]}: ${layer.label}`),
+        el('span', { class: 'muted' }, ` ${layer.area_pct}% · ${layer.color || ''}`),
+        el('div', { class: 'row' },
+          el('select', { onchange: e => { c.action = e.target.value; rdRender(); } },
+            ...[['keep', 'Giữ'], ['change', 'Sửa'], ['remove', 'Bỏ']].map(([v, l]) => el('option', { value: v, selected: c.action === v }, l))),
+          el('a', { href: layer.url + '?download', download: `${s.id}-${layer.id}.png` }, 'Tải PNG')),
+        noteBox));
+  }));
+}
+
+$('#rd-prompt').addEventListener('click', async () => {
+  if (!rd.scene) { note('rd', 'Hãy phân tích một thiết kế trước.', true); return; }
+  try {
+    rd.out = await api(`/api/v2/redesign/${rd.scene.id}/prompt`, {
+      goal: $('#rd-goal').value, layers: rd.choices,
+      skills: $$('#rd-skills input:checked').map(i => i.value) });
+    $('#rd-text').value = rd.out.prompt;
+    $('#rd-out').hidden = false;
+    note('rd', `Brief sửa ${rd.out.changed.join(', ')}; các lớp còn lại giữ nguyên. Đã lưu kèm Skill: ${rd.out.skills.join(', ') || 'không'}.`);
+  } catch (error) { note('rd', error.message, true); }
+});
+
+async function rdCopy(text, label) {
+  try { await navigator.clipboard.writeText(text); note('rd', `Đã chép ${label}.`); }
+  catch (_) { $('#rd-text').value = text; $('#rd-text').select(); note('rd', 'Trình duyệt không cho chép tự động; đã chọn sẵn, bấm Cmd+C.'); }
+}
+$('#rd-copy').addEventListener('click', () => rdCopy(rd.out.prompt, 'brief'));
+$('#rd-copy-md').addEventListener('click', () => rdCopy(rd.out.markdown, 'brief + Skill'));
+$('#rd-ask').addEventListener('click', async () => {
+  const blob = await (await fetch(rd.scene.source_url)).blob();
+  addAttachments([new File([blob], `${rd.scene.id}.png`, { type: 'image/png' })]);
+  $('#chat-prompt').value = ('Sửa thiết kế đính kèm theo brief và Skill dưới đây. Giữ nguyên mọi thứ không được yêu cầu sửa.\n\n'
+    + rd.out.markdown).slice(0, 8000);
+  $('.tabs button[data-tab="claude"]').click();
 });

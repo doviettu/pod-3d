@@ -59,7 +59,7 @@ Càng nhiều bộ mẫu cùng dáng, bản đồ trải phẳng càng chính x�
 
 1. **Hiệu chỉnh** (1 lần mỗi loại áo): SIFT + optical flow tìm điểm khớp giữa mockup và file in thật, ra bản đồ trải phẳng và vùng tin cậy.
 2. **Trải phẳng** mockup mới theo bản đồ, chỉnh màu (mockup bị đổ bóng).
-3. **Lấp phần bị che**: dải hoạ tiết lặp được nối tiếp đúng chu kỳ; phần còn lại do LaMa vẽ.
+3. **Lấp phần bị che**: mượn phần mảnh sau/trước nhìn thấy (khi hai mảnh cùng art, kể cả bản lật gương); hoạ tiết lặp 2D (in tràn kiểu hoa, chấm bi, caro) và dải hoạ tiết lặp được nối tiếp đúng chu kỳ; phần còn lại do LaMa vẽ. Đo bằng `scripts/golden.py` trên 3 bộ mẫu thật: mảnh Back giảm sai màu ΔE 13,7→11,1 (Home Alone), 16,1→12,0 (Street Fighter), 26,8→21,9 (Jack).
 4. **Làm sạch** vân len, gom màu phẳng về bảng màu chuẩn.
 5. **Phóng to** bằng Real-ESRGAN (GPU Apple qua MPS), ép đúng kích thước khuôn, xuất JPG 300 DPI + ZIP.
 

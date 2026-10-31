@@ -13,10 +13,17 @@ import shutil
 import threading
 from urllib.parse import unquote
 
+import cv2
 import numpy as np
+from PIL import Image
 
 import art2d
 import gdrive
+import listing
+import mockups
+import panel_detect
+import redesign
+import preflight
 import rights
 import sources
 import styles
@@ -39,6 +46,10 @@ class StudioV2:
         self.cache.mkdir(parents=True, exist_ok=True)
         self.store = JobStore(self.runtime / 'studio.db')
         self.rights = rights.RightsChecker(self.runtime)
+        self.mockups = mockups.MockupLibrary(self.runtime / 'mockups')
+        self.segmenter = None   # panel_detect.sam3_segmenter() on first use; tests set a fake
+        self.detect_lock = threading.Lock()
+        self.redesign = redesign.RedesignStore(self.runtime / 'redesign')
         self.lock = threading.Lock()
         self.google = gdrive.Google(gdrive.GoogleConfig(google_config), google_transport or gdrive.urllib_transport)
         self.drive = gdrive.DriveSync(self.google, self.runtime / 'drive-queue.json', self._drive_bundle,
@@ -80,6 +91,21 @@ class StudioV2:
         with self.lock:
             created = self.library.create(path, data, build_maps)
         return {**created, 'template': self.engine.template_info(created['name'])}
+
+    def auto_quads(self, data):
+        """Starting quads for marking a new template, found by SAM 3 on the source photo."""
+        data = data or {}
+        bgr = cv2.imread(str(self._cached(data.get('source_id'))), cv2.IMREAD_COLOR)
+        if bgr is None:
+            raise ValueError('Không đọc được ảnh mockup.')
+        if not self.detect_lock.acquire(blocking=False):
+            raise ValueError('SAM 3 đang chạy cho ảnh khác; thử lại sau ít giây.')
+        try:
+            if self.segmenter is None:
+                self.segmenter = panel_detect.sam3_segmenter()
+            return panel_detect.propose(bgr, data.get('style'), self.segmenter)
+        finally:
+            self.detect_lock.release()
 
     def template_preview(self, name):
         if name not in self.engine.templates.available():
@@ -241,6 +267,10 @@ class StudioV2:
             self._screen(job_id, [(side, folder / f'{side}.png') for side in outputs])
             store.update(job_id, status='review', outputs={'sides': outputs},
                          sides='+'.join(outputs))
+            try:
+                self.preflight(job_id)
+            except Exception as exc:  # noqa: BLE001 - the check is advice, never fails the job
+                store.log(job_id, f'Không kiểm tra được file in: {exc}'[:300])
         except Exception as exc:  # noqa: BLE001 - every failure must reach the UI
             store.update(job_id, status='failed', error=str(exc)[:500])
 
@@ -335,6 +365,179 @@ class StudioV2:
             self.drive.enqueue([job_id])
         return self.get(job_id)
 
+    # ---- print check, real photo, listing set ---------------------------------
+    def _set_extra(self, job_id, key, value):
+        with self.lock:
+            extras = self.store.get(job_id)['extras']
+            return self.store.update(job_id, extras={**extras, key: value})
+
+    def _print_files(self, job):
+        """[(label, path, expected size or None)] for the finished print files of a job."""
+        if job['kind'] == '2d':
+            folder = self.jobs_dir / job['id']
+            return [(side, folder / out['file'], None) for side, out in job['outputs'].get('sides', {}).items()]
+        try:
+            sizes = {p['name']: p['size'] for p in self.engine.template_info(job['params'].get('template'))['panels']}
+        except (AttributeError, KeyError, OSError, ValueError, TypeError):
+            sizes = {}
+        files = []
+        for item in job['outputs'].get('artifacts', []):
+            name, url = item.get('name', ''), item.get('url', '')
+            if item.get('kind') == 'image' and name.endswith(' local.png') and url.startswith('/files/'):
+                panel = name[:-len(' local.png')]
+                files.append((panel, self.engine.file_path(job['legacy_id'], unquote(url.split('/', 3)[3])),
+                              sizes.get(panel)))
+        return files
+
+    def preflight_profiles(self):
+        return preflight.catalog()
+
+    def preflight(self, job_id, data=None):
+        job = self.get(job_id)
+        if job['status'] not in ('review', 'approved'):
+            raise ValueError('Chỉ kiểm tra được job đã xử lý xong.')
+        profile = ((data or {}).get('profile') or job['extras'].get('preflight', {}).get('profile')
+                   or ('dtg' if job['kind'] == '2d' else 'aop'))
+        files = self._print_files(job)
+        if not files:
+            raise ValueError('Job chưa có file in để kiểm tra.')
+        report = preflight.run(files, profile)
+        self.store.log(job_id, f'Kiểm tra file in ({report["label"]}): ' +
+                       {'ok': 'đạt', 'warn': 'có cảnh báo', 'error': 'có lỗi'}[report['status']])
+        return self._set_extra(job_id, 'preflight', report)
+
+    def real_photo(self, job_id, data):
+        """Store the seller's own photo of the printed product (Etsy wants one in every listing)."""
+        job = self.get(job_id)
+        raw = sources.from_base64((data or {}).get('image_base64'))
+        if len(raw) > sources.MAX_BYTES:
+            raise ValueError('Ảnh vượt quá giới hạn 32 MB.')
+        suffix, width, height = sources.check_image(raw)
+        if min(width, height) < 1000:
+            raise ValueError(f'Ảnh thật {width} × {height} px quá nhỏ; Etsy nên từ 2000 px, tối thiểu 1000 px.')
+        folder = self.jobs_dir / job_id
+        folder.mkdir(exist_ok=True)
+        for old in folder.glob('real-photo.*'):
+            old.unlink()
+        (folder / ('real-photo' + suffix)).write_bytes(raw)
+        info = {'file': 'real-photo' + suffix, 'width': width, 'height': height,
+                'added': datetime.now().isoformat(timespec='seconds')}
+        self.store.log(job_id, 'Đã thêm ảnh mẫu thật.')
+        return self._set_extra(job_id, 'real_photo', info)
+
+    def listing(self, job_id):
+        job = self.get(job_id)
+        if job['status'] not in ('review', 'approved'):
+            raise ValueError('Chỉ tạo bộ ảnh cho job đã xử lý xong.')
+        folder = self.jobs_dir / job_id
+        photo = job['extras'].get('real_photo')
+        real = folder / photo['file'] if photo else None
+        rendered = [folder / m['file'] for m in job['extras'].get('mockups', {}).get('files', [])]
+        if job['kind'] == '2d':
+            mockups = rendered + sorted(folder.glob('source[12].*'))
+            sides = job['outputs'].get('sides', {})
+            designs = [(side, folder / out['file'], list(listing.SHIRT_COLORS) if side == 'front' else ['trang', 'den'])
+                       for side, out in sides.items()]
+            panels = []
+        else:
+            try:
+                mockups = rendered + [self._cached(job.get('source_sha256'))]
+            except ValueError:
+                mockups = rendered
+            designs = []
+            panels = [(label, path) for label, path, _ in self._print_files(job)]
+        result = listing.build(folder / 'listing', real, mockups, designs, panels)
+        result['built'] = datetime.now().isoformat(timespec='seconds')
+        self.store.log(job_id, f'Đã tạo bộ ảnh listing: {len(result["files"])} ảnh.')
+        return self._set_extra(job_id, 'listing', result)
+
+    # ---- sales mockups ---------------------------------------------------------
+    def mockup_list(self):
+        return {'presets': self.mockups.list(), 'groups': self.mockups.groups()}
+
+    def mockup_create(self, data):
+        raw = sources.from_base64((data or {}).get('image_base64'))
+        sources.check_image(raw)
+        return self.mockups.create(raw, data.get('group'), data.get('name'), data.get('kind', 'tee'))
+
+    def mockup_update(self, preset_id, data):
+        return self.mockups.update(preset_id, data or {})
+
+    def mockup_delete(self, preset_id):
+        self.mockups.delete(preset_id)
+        return self.mockup_list()
+
+    # ---- redesign ---------------------------------------------------------------
+    def redesign_skills(self):
+        return {'skills': redesign.skills()}
+
+    def redesign_analyze(self, data):
+        """Split a design (uploaded PNG or a finished 2D job side) into layers; SAM 3 on request."""
+        data = data or {}
+        rgba = self._art(data)
+        name = data.get('name') or (f'{data.get("job_id", "")} {data.get("side", "")}'.strip() if not data.get('art_base64') else '')
+        if not data.get('sam3'):
+            return self.redesign.analyze(rgba, name)
+        if not self.detect_lock.acquire(blocking=False):
+            raise ValueError('SAM 3 đang chạy cho ảnh khác; thử lại sau ít giây.')
+        try:
+            if self.segmenter is None:
+                self.segmenter = panel_detect.sam3_segmenter()
+            return self.redesign.analyze(rgba, name, self.segmenter)
+        finally:
+            self.detect_lock.release()
+
+    def redesign_get(self, rid):
+        return self.redesign.get(rid)
+
+    def redesign_prompt(self, rid, data):
+        return self.redesign.prompt(rid, data)
+
+    def _art(self, data):
+        """The design to place: an uploaded PNG, or a side of a finished 2D job."""
+        if data.get('art_base64'):
+            return mockups.decode_rgba(sources.from_base64(data['art_base64']))
+        job = self.get(data.get('job_id') or '')
+        sides = job['outputs'].get('sides', {}) if job['kind'] == '2d' else {}
+        if not sides:
+            raise ValueError('Hãy chọn một job 2D đã xử lý xong hoặc tải lên file PNG art.')
+        side = data.get('side') if data.get('side') in sides else 'front' if 'front' in sides else next(iter(sides))
+        return mockups.decode_rgba((self.jobs_dir / job['id'] / sides[side]['file']).read_bytes())
+
+    def mockup_preview(self, preset_id, data):
+        data = data or {}
+        image = self.mockups.render(preset_id, self._art(data), data.get('zone'), data.get('options'),
+                                    flat=data.get('mode') == 'flat')
+        folder = self.mockups.file(preset_id, 'blank.jpg').parent
+        listing.save_jpeg(Image.fromarray(image[..., ::-1]), folder / 'preview.jpg', 2_500_000)
+        return {'url': f'/api/v2/mockups/{preset_id}/preview.jpg?t={datetime.now().timestamp():.0f}'}
+
+    def mockup_diagnostic(self, preset_id, name):
+        ok, data = cv2.imencode('.png', self.mockups.diagnostic(preset_id, name))
+        return data.tobytes()
+
+    def job_mockups(self, job_id, data):
+        """Render every preset of a group with this job's design; the listing set uses them."""
+        job = self.get(job_id)
+        group = (data or {}).get('group')
+        presets = [p for p in self.mockups.list() if p['group'] == group]
+        if not presets:
+            raise ValueError('Nhóm mockup không có ảnh nào.')
+        art = self._art({'job_id': job_id, 'side': (data or {}).get('side')})
+        out = self.jobs_dir / job_id / 'mockups'
+        out.mkdir(parents=True, exist_ok=True)
+        for old in out.glob('*.jpg'):
+            old.unlink()
+        made = []
+        for preset in presets:
+            image = self.mockups.render(preset['id'], art)
+            name = f'{preset["id"]}.jpg'
+            listing.save_jpeg(Image.fromarray(image[..., ::-1]), out / name, 2_500_000)
+            made.append({'file': f'mockups/{name}', 'preset': preset['id'], 'name': preset['name']})
+        self.store.log(job_id, f'Đã render {len(made)} mockup nhóm "{group}".')
+        return self._set_extra(job_id, 'mockups', {'group': group, 'files': made,
+                                                   'built': datetime.now().isoformat(timespec='seconds')})
+
     def file_path(self, job_id, relative):
         if not JOB_ID.fullmatch(job_id or ''):
             raise FileNotFoundError()
@@ -426,6 +629,9 @@ class StudioV2:
             template = job['params'].get('template') or ''
             label = self.engine.style_label(template) if template and hasattr(self.engine, 'style_label') else ''
             style = f'{label} ({template})' if label else template
+        photo = job['extras'].get('real_photo')
+        if photo:
+            files.append((self.jobs_dir / job_id / photo['file'], photo['file']))
         rights_label = {'unknown': 'Chưa kiểm', 'green': 'Xanh', 'yellow': 'Vàng', 'red': 'Đỏ'}[job['rights']]
 
         def row(urls):

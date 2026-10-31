@@ -21,7 +21,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from pod3d import clean, fill, io, template  # noqa: E402
+from pod3d import clean, fill, io, pipeline, template  # noqa: E402
 from pod3d import unwrap as unwrap_module  # noqa: E402
 from pod3d.unwrap import unwrap  # noqa: E402
 
@@ -40,9 +40,10 @@ def delta_e(a_bgr, b_bgr):
     return np.linalg.norm(lab(a_bgr) - lab(b_bgr), axis=-1)
 
 
-def score_panel(tpl, panel, mockup, truth):
+def score_panel(tpl, panel, mockup, truth, twin=None):
     work, cov = unwrap(tpl, panel, mockup)
-    work = fill.fill(work, cov, log=lambda m: None, mode="tile" if panel.method in ("strip", "tube") else "bands")
+    work = fill.fill(work, cov, log=lambda m: None, mode="tile" if panel.method in ("strip", "tube") else "bands",
+                     twin=twin)
     work, _, _ = clean.clean(work)
     h, w = work.shape[:2]
     ref = cv2.resize(truth, (w, h), interpolation=cv2.INTER_AREA)
@@ -70,7 +71,9 @@ def run(specs, out_dir=None):
             if panel.source != 'unwrap' or not truth_path.exists() or not tpl.map_path(panel.name).exists():
                 continue
             t0 = time.time()
-            score, work, ref = score_panel(tpl, panel, mockup, io.read(truth_path))
+            other = next((p for p in tpl.panels if p.name == pipeline.TWINS.get(panel.name)), None)
+            twin = unwrap(tpl, other, mockup) if other is not None and tpl.map_path(other.name).exists() else None
+            score, work, ref = score_panel(tpl, panel, mockup, io.read(truth_path), twin)
             score['seconds'] = round(time.time() - t0, 1)
             sample[panel.name] = score
             if out_dir:

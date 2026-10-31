@@ -7,6 +7,7 @@ import hashlib
 import html
 import io
 import json
+import os
 import re
 import sys
 import threading
@@ -732,6 +733,23 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, v2.styles())
         elif path == "/api/v2/google":
             self.send_json(200, v2.google_status())
+        elif path == "/api/v2/preflight-profiles":
+            self.send_json(200, v2.preflight_profiles())
+        elif path == "/api/v2/mockups":
+            self.send_json(200, v2.mockup_list())
+        elif path == "/api/v2/skills":
+            self.send_json(200, v2.redesign_skills())
+        elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}", path):
+            self.send_json(200, v2.redesign_get(path.split("/")[4]))
+        elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}/(?:source|layer-\d{1,3})[.]png", path):
+            parts = path.split("/")
+            self.send_file(v2.redesign.file(parts[4], parts[5]))
+        elif re.fullmatch(r"/api/v2/mockups/[a-z0-9-]{3,80}/(?:blank|preview)[.]jpg", path):
+            parts = path.split("/")
+            self.send_file(v2.mockups.file(parts[4], parts[5]))
+        elif re.fullmatch(r"/api/v2/mockups/[a-z0-9-]{3,80}/diag/(?:mask|light|disp|texture)[.]png", path):
+            parts = path.split("/")
+            self.send_bytes(200, v2.mockup_diagnostic(parts[4], parts[6][:-4]), "image/png")
         elif re.fullmatch(r"/api/v2/templates/[a-z][a-z0-9_-]{0,63}/preview", path):
             self.send_file(v2.template_preview(path.split("/")[4]))
         elif re.fullmatch(r"/api/v2/sources/[a-f0-9]{64}", path):
@@ -821,7 +839,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(415, {"error": "Yêu cầu phải có định dạng JSON."})
             return
         length = self.headers.get("Content-Length", "")
-        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template', '/api/claude/chat') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review', self.path) else 128 * 1024 if self.path in ('/api/design-plan', '/api/v2/rights-config') else 16 * 1024
+        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template', '/api/claude/chat') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review|/api/v2/jobs/[a-f0-9]{32}/real-photo|/api/v2/mockups(?:/[a-z0-9-]{3,80}/preview)?|/api/v2/redesign', self.path) else 128 * 1024 if self.path in ('/api/design-plan', '/api/v2/rights-config') else 16 * 1024
         if not length.isdigit() or len(length) > 9 or not 0 < int(length) <= limit:
             self.send_json(413, {"error": "Dữ liệu quá lớn hoặc thiếu độ dài."})
             return
@@ -830,7 +848,12 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError("Yêu cầu phải là một đối tượng JSON.")
             engine = self.server.engine
-            if self.path == "/api/claude/chat":
+            if self.path == "/api/restart":
+                if is_online(self):
+                    raise ValueError("Chỉ khởi động lại được từ trình duyệt trên máy Mac.")
+                self.send_json(202, {"ok": True})
+                restart_soon(self.server)
+            elif self.path == "/api/claude/chat":
                 self.claude_chat(data)
             elif self.path == "/api/v2/inspect":
                 self.send_json(200, self.server.v2.inspect(data))
@@ -856,10 +879,32 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, self.server.v2.google_sync(data))
             elif self.path == "/api/v2/templates":
                 self.send_json(201, self.server.v2.create_template(data))
+            elif self.path == "/api/v2/templates/auto-quads":
+                self.send_json(200, self.server.v2.auto_quads(data))
             elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/rights", self.path):
                 self.send_json(200, self.server.v2.set_rights(self.path.split("/")[4], data))
             elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/approve", self.path):
                 self.send_json(200, self.server.v2.approve(self.path.split("/")[4]))
+            elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/preflight", self.path):
+                self.send_json(200, self.server.v2.preflight(self.path.split("/")[4], data))
+            elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/real-photo", self.path):
+                self.send_json(200, self.server.v2.real_photo(self.path.split("/")[4], data))
+            elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/listing", self.path):
+                self.send_json(200, self.server.v2.listing(self.path.split("/")[4]))
+            elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/mockups", self.path):
+                self.send_json(200, self.server.v2.job_mockups(self.path.split("/")[4], data))
+            elif self.path == "/api/v2/mockups":
+                self.send_json(201, self.server.v2.mockup_create(data))
+            elif self.path == "/api/v2/redesign":
+                self.send_json(201, self.server.v2.redesign_analyze(data))
+            elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}/prompt", self.path):
+                self.send_json(200, self.server.v2.redesign_prompt(self.path.split("/")[4], data))
+            elif re.fullmatch(r"/api/v2/mockups/[a-z0-9-]{3,80}", self.path):
+                self.send_json(200, self.server.v2.mockup_update(self.path.split("/")[4], data))
+            elif re.fullmatch(r"/api/v2/mockups/[a-z0-9-]{3,80}/preview", self.path):
+                self.send_json(200, self.server.v2.mockup_preview(self.path.split("/")[4], data))
+            elif re.fullmatch(r"/api/v2/mockups/[a-z0-9-]{3,80}/delete", self.path):
+                self.send_json(200, self.server.v2.mockup_delete(self.path.split("/")[4]))
             elif self.path == "/api/settings":
                 allowed = {"api_key", "model", "image_size", "quality"}
                 if not set(data) <= allowed:
@@ -891,6 +936,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(400, {"error": message[:500]})
 
 
+def restart_soon(server):
+    """Stop serving once the reply is out; main() then lets running jobs finish and starts the
+    same command again in this process (works under launchd and from a Terminal window)."""
+    server.restart = True
+    threading.Timer(0.3, server.shutdown).start()
+
+
 def main():
     parser = argparse.ArgumentParser(description="POD Studio — giao diện local trên Mac")
     parser.add_argument("--port", type=int, default=8765)
@@ -919,6 +971,9 @@ def main():
     finally:
         server.server_close()
         engine.executor.shutdown(wait=True)
+    if getattr(server, 'restart', False):
+        print("POD Studio: khởi động lại…", flush=True)
+        os.execv(sys.executable, [sys.executable, *sys.argv])
 
 
 if __name__ == "__main__":

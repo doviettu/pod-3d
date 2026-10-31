@@ -15,7 +15,7 @@ KINDS = ('2d', '3d')
 MODES = ('local', 'ai')
 STATUSES = ('queued', 'running', 'review', 'approved', 'failed', 'interrupted')
 RIGHTS = ('unknown', 'green', 'yellow', 'red')
-JSON_FIELDS = ('params', 'outputs', 'logs', 'rights_evidence')
+JSON_FIELDS = ('params', 'outputs', 'logs', 'rights_evidence', 'extras')
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS jobs (
@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     cost_usd REAL NOT NULL DEFAULT 0,
     legacy_id TEXT,
     drive_url TEXT,
+    extras TEXT NOT NULL DEFAULT '{}',
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -62,6 +63,8 @@ class JobStore:
             columns = {r['name'] for r in self.db.execute('PRAGMA table_info(jobs)')}
             if 'rights_evidence' not in columns:   # databases made before the rights check
                 self.db.execute("ALTER TABLE jobs ADD COLUMN rights_evidence TEXT NOT NULL DEFAULT '{}'")
+            if 'extras' not in columns:   # real photo, preflight and listing set (added 2026-10-30)
+                self.db.execute("ALTER TABLE jobs ADD COLUMN extras TEXT NOT NULL DEFAULT '{}'")
             # A restart drops the in-memory queue; never resubmit silently (AI jobs cost money).
             self.db.execute("UPDATE jobs SET status='interrupted', error=?, updated_at=? "
                             "WHERE status IN ('queued','running')",
@@ -125,7 +128,7 @@ class JobStore:
         if 'rights' in changes and changes['rights'] not in RIGHTS:
             raise ValueError('Mức bản quyền không hợp lệ.')
         allowed = {'status', 'sides', 'rights', 'rights_reason', 'rights_evidence', 'params', 'outputs', 'error',
-                   'cost_usd', 'legacy_id', 'drive_url', 'source_url', 'source_sha256'}
+                   'cost_usd', 'legacy_id', 'drive_url', 'source_url', 'source_sha256', 'extras'}
         if not set(changes) <= allowed:
             raise ValueError('Trường không hợp lệ: ' + ', '.join(sorted(set(changes) - allowed)))
         values = {k: json.dumps(v, ensure_ascii=False) if k in JSON_FIELDS else v for k, v in changes.items()}
