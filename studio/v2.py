@@ -22,6 +22,7 @@ import gdrive
 import listing
 import mockups
 import panel_detect
+import redesign
 import preflight
 import rights
 import sources
@@ -48,6 +49,7 @@ class StudioV2:
         self.mockups = mockups.MockupLibrary(self.runtime / 'mockups')
         self.segmenter = None   # panel_detect.sam3_segmenter() on first use; tests set a fake
         self.detect_lock = threading.Lock()
+        self.redesign = redesign.RedesignStore(self.runtime / 'redesign')
         self.lock = threading.Lock()
         self.google = gdrive.Google(gdrive.GoogleConfig(google_config), google_transport or gdrive.urllib_transport)
         self.drive = gdrive.DriveSync(self.google, self.runtime / 'drive-queue.json', self._drive_bundle,
@@ -464,6 +466,32 @@ class StudioV2:
     def mockup_delete(self, preset_id):
         self.mockups.delete(preset_id)
         return self.mockup_list()
+
+    # ---- redesign ---------------------------------------------------------------
+    def redesign_skills(self):
+        return {'skills': redesign.skills()}
+
+    def redesign_analyze(self, data):
+        """Split a design (uploaded PNG or a finished 2D job side) into layers; SAM 3 on request."""
+        data = data or {}
+        rgba = self._art(data)
+        name = data.get('name') or (f'{data.get("job_id", "")} {data.get("side", "")}'.strip() if not data.get('art_base64') else '')
+        if not data.get('sam3'):
+            return self.redesign.analyze(rgba, name)
+        if not self.detect_lock.acquire(blocking=False):
+            raise ValueError('SAM 3 đang chạy cho ảnh khác; thử lại sau ít giây.')
+        try:
+            if self.segmenter is None:
+                self.segmenter = panel_detect.sam3_segmenter()
+            return self.redesign.analyze(rgba, name, self.segmenter)
+        finally:
+            self.detect_lock.release()
+
+    def redesign_get(self, rid):
+        return self.redesign.get(rid)
+
+    def redesign_prompt(self, rid, data):
+        return self.redesign.prompt(rid, data)
 
     def _art(self, data):
         """The design to place: an uploaded PNG, or a side of a finished 2D job."""

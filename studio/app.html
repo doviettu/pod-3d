@@ -15,6 +15,7 @@
     <button role="tab" data-tab="2d" aria-selected="true">2D · In 1–2 mặt</button>
     <button role="tab" data-tab="3d" aria-selected="false">3D · In tràn</button>
     <button role="tab" data-tab="mockup" aria-selected="false">Mockup bán hàng</button>
+    <button role="tab" data-tab="redesign" aria-selected="false">Redesign</button>
     <button role="tab" data-tab="library" aria-selected="false">Thư viện kiểu dáng</button>
     <button role="tab" data-tab="history" aria-selected="false">Lịch sử</button>
     <button role="tab" data-tab="claude" aria-selected="false">Hỏi Claude</button>
@@ -157,6 +158,40 @@
           <button id="mk-render" class="accent">Render thử</button>
           <button id="mk-save">Lưu vùng và thông số</button>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Redesign -->
+  <section id="tab-redesign" class="tab" hidden>
+    <div class="grid">
+      <div class="panel">
+        <h2>Redesign · tách lớp</h2>
+        <p class="muted" id="rd-info">Chọn một thiết kế ở cột bên phải rồi bấm <b>Phân tích</b>. Mỗi lớp (chữ, hình, chi tiết nhỏ) hiện một khung; bấm khung hoặc dòng bên dưới để chọn.</p>
+        <div id="rd-stage" class="rd-stage"></div>
+        <div id="rd-palette" class="rd-palette"></div>
+        <div id="rd-layers" class="rd-layers"></div>
+      </div>
+      <div class="panel">
+        <h3>1. Thiết kế</h3>
+        <label class="block">Từ job 2D <select id="rd-job"></select></label>
+        <label class="block">hoặc file PNG/JPG <input id="rd-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+        <label class="check"><input type="checkbox" id="rd-sam"> Tách sâu bằng SAM 3 (nhân vật, con vật, logo…; chậm hơn 20–60 giây)</label>
+        <button id="rd-analyze" class="accent">Phân tích</button>
+        <h3>2. Muốn đổi gì</h3>
+        <p class="muted">Ở mỗi lớp chọn <b>Giữ</b>, <b>Sửa</b> (ghi cần sửa thế nào) hoặc <b>Bỏ</b>. Lớp nào giữ thì brief yêu cầu giữ nguyên từng chi tiết.</p>
+        <label class="block">Mục tiêu chung <textarea id="rd-goal" rows="3" maxlength="600" placeholder="Ví dụ: bản Halloween, giữ bố cục, đổi con mèo thành bí ngô"></textarea></label>
+        <div id="rd-skills"></div>
+        <button id="rd-prompt" class="accent">Xuất brief</button>
+        <div id="rd-out" hidden>
+          <textarea id="rd-text" rows="12" readonly></textarea>
+          <div class="actions">
+            <button id="rd-copy">Chép brief</button>
+            <button id="rd-copy-md">Chép brief + Skill</button>
+            <button id="rd-ask">Gửi sang Hỏi Claude</button>
+          </div>
+        </div>
+        <p class="note" id="note-rd"></p>
       </div>
     </div>
   </section>

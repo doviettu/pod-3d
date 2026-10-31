@@ -1342,3 +1342,124 @@ $('#restart').addEventListener('click', async event => {
   }
   button.textContent = 'Chưa lên lại, hãy chạy restart.command';
 });
+
+// ---------- redesign ----------
+// Step 1: split a design into layers, mark keep / change / remove, export a brief + Skills.
+const rd = { scene: null, active: null, choices: {}, art: null, out: null };
+const RD_TYPE = { text: 'Chữ', graphic: 'Hình', object: 'Đối tượng' };
+
+async function loadRedesign() {
+  try {
+    const [jobs, skills] = await Promise.all([api('/api/v2/jobs?kind=2d'), api('/api/v2/skills')]);
+    const keep = $('#rd-job').value;
+    const done = jobs.filter(j => ['review', 'approved'].includes(j.status) && j.outputs.sides);
+    $('#rd-job').replaceChildren(el('option', { value: '' }, '— chọn job —'),
+      ...done.flatMap(j => Object.keys(j.outputs.sides).map(side => el('option', { value: `${j.id}:${side}`, selected: `${j.id}:${side}` === keep }, `${j.sku} · ${SIDE_LABEL[side]}`))));
+    if (!$('#rd-skills').children.length) {
+      $('#rd-skills').replaceChildren(el('p', { class: 'muted' }, 'Skill gửi kèm:'),
+        ...skills.skills.map(s => el('label', { class: 'check', title: s.summary },
+          el('input', { type: 'checkbox', value: s.id, checked: true }), ` ${s.title}`)));
+    }
+  } catch (error) { note('rd', error.message, true); }
+}
+$('.tabs button[data-tab="redesign"]').addEventListener('click', loadRedesign);
+
+$('#rd-file').addEventListener('change', async () => {
+  const file = $('#rd-file').files[0];
+  rd.art = file ? await fileToBase64(file) : null;
+  if (file) $('#rd-job').value = '';
+});
+$('#rd-job').addEventListener('change', () => { if ($('#rd-job').value) { rd.art = null; $('#rd-file').value = ''; } });
+
+$('#rd-analyze').addEventListener('click', async event => {
+  const [job_id, side] = ($('#rd-job').value || '').split(':');
+  if (!rd.art && !job_id) { note('rd', 'Hãy chọn một job 2D hoặc tải lên file thiết kế.', true); return; }
+  const body = rd.art ? { art_base64: rd.art, name: $('#rd-file').files[0]?.name } : { job_id, side };
+  body.sam3 = $('#rd-sam').checked;
+  event.target.disabled = true;
+  note('rd', body.sam3 ? 'Đang tách lớp (có SAM 3, khoảng 20–60 giây)…' : 'Đang tách lớp…');
+  try {
+    rd.scene = await api('/api/v2/redesign', body);
+    rd.choices = {};
+    rd.active = null;
+    $('#rd-out').hidden = true;
+    rdRender();
+    const s = rd.scene;
+    note('rd', `Tách được ${s.layers.length} lớp.${s.ocr ? '' : ' Chưa đọc chữ (cài Tesseract trên Mac: brew install tesseract).'}`);
+  } catch (error) {
+    note('rd', error.message, true);
+  } finally {
+    event.target.disabled = false;
+  }
+});
+
+function rdChoice(id) {
+  return rd.choices[id] || (rd.choices[id] = { action: 'keep', note: '' });
+}
+
+function rdRender() {
+  const s = rd.scene;
+  if (!s) return;
+  const [w, h] = s.size;
+  $('#rd-info').textContent = `${s.name || s.id} · ${w} × ${h} px · ${s.background ? 'nền đặc' : 'nền trong suốt'} · phủ mực ${s.ink_pct}%`;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+  svg.classList.add('rd-boxes');
+  for (const layer of s.layers) {
+    const [x, y, bw, bh] = layer.bbox;
+    const r = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    Object.entries({ x, y, width: bw, height: bh }).forEach(([k, v]) => r.setAttribute(k, v));
+    r.setAttribute('class', `rd-box ${rdChoice(layer.id).action}${rd.active === layer.id ? ' active' : ''}`);
+    r.addEventListener('click', () => { rd.active = layer.id; rdRender(); });
+    const t = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    t.setAttribute('x', x + 4); t.setAttribute('y', y + Math.max(14, w / 45));
+    t.setAttribute('font-size', Math.max(12, w / 45));
+    t.textContent = layer.id;
+    svg.append(r, t);
+  }
+  $('#rd-stage').replaceChildren(el('img', { src: s.source_url, alt: 'Thiết kế' }), svg);
+  $('#rd-palette').replaceChildren(...s.palette.map(p => el('span', { class: 'swatch', title: `${p.hex} · ${p.pct}%`, style: `background:${p.hex}` })),
+    el('span', { class: 'muted' }, ' bảng màu chính'));
+  $('#rd-layers').replaceChildren(...s.layers.map(layer => {
+    const c = rdChoice(layer.id);
+    const noteBox = el('input', { type: 'text', maxlength: '500', placeholder: 'Sửa thế nào? Ví dụ: đổi thành bí ngô', value: c.note,
+      oninput: e => { c.note = e.target.value; } });
+    noteBox.hidden = c.action !== 'change';
+    return el('div', { class: `rd-layer${rd.active === layer.id ? ' active' : ''}`, onclick: () => { if (rd.active !== layer.id) { rd.active = layer.id; rdRender(); } } },
+      el('img', { src: layer.url, alt: layer.label, loading: 'lazy' }),
+      el('div', { class: 'grow' },
+        el('b', {}, `${layer.id} · ${RD_TYPE[layer.type]}: ${layer.label}`),
+        el('span', { class: 'muted' }, ` ${layer.area_pct}% · ${layer.color || ''}`),
+        el('div', { class: 'row' },
+          el('select', { onchange: e => { c.action = e.target.value; rdRender(); } },
+            ...[['keep', 'Giữ'], ['change', 'Sửa'], ['remove', 'Bỏ']].map(([v, l]) => el('option', { value: v, selected: c.action === v }, l))),
+          el('a', { href: layer.url + '?download', download: `${s.id}-${layer.id}.png` }, 'Tải PNG')),
+        noteBox));
+  }));
+}
+
+$('#rd-prompt').addEventListener('click', async () => {
+  if (!rd.scene) { note('rd', 'Hãy phân tích một thiết kế trước.', true); return; }
+  try {
+    rd.out = await api(`/api/v2/redesign/${rd.scene.id}/prompt`, {
+      goal: $('#rd-goal').value, layers: rd.choices,
+      skills: $$('#rd-skills input:checked').map(i => i.value) });
+    $('#rd-text').value = rd.out.prompt;
+    $('#rd-out').hidden = false;
+    note('rd', `Brief sửa ${rd.out.changed.join(', ')}; các lớp còn lại giữ nguyên. Đã lưu kèm Skill: ${rd.out.skills.join(', ') || 'không'}.`);
+  } catch (error) { note('rd', error.message, true); }
+});
+
+async function rdCopy(text, label) {
+  try { await navigator.clipboard.writeText(text); note('rd', `Đã chép ${label}.`); }
+  catch (_) { $('#rd-text').value = text; $('#rd-text').select(); note('rd', 'Trình duyệt không cho chép tự động; đã chọn sẵn, bấm Cmd+C.'); }
+}
+$('#rd-copy').addEventListener('click', () => rdCopy(rd.out.prompt, 'brief'));
+$('#rd-copy-md').addEventListener('click', () => rdCopy(rd.out.markdown, 'brief + Skill'));
+$('#rd-ask').addEventListener('click', async () => {
+  const blob = await (await fetch(rd.scene.source_url)).blob();
+  addAttachments([new File([blob], `${rd.scene.id}.png`, { type: 'image/png' })]);
+  $('#chat-prompt').value = ('Sửa thiết kế đính kèm theo brief và Skill dưới đây. Giữ nguyên mọi thứ không được yêu cầu sửa.\n\n'
+    + rd.out.markdown).slice(0, 8000);
+  $('.tabs button[data-tab="claude"]').click();
+});

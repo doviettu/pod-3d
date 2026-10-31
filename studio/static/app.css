@@ -158,3 +158,21 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 .mk-maps figure { margin: 0; } .mk-maps img { width: 100%; border-radius: 8px; border: 1px solid var(--line); }
 .mk-stage { position: relative; user-select: none; -webkit-user-select: none; touch-action: none; }
 .mk-stage .quads { pointer-events: none; } .mk-stage .quads polygon, .mk-stage .quads polyline { pointer-events: auto; }
+.rd-stage { position: relative; background: repeating-conic-gradient(#e7e7ea 0% 25%, #fff 0% 50%) 0 0 / 20px 20px; border-radius: 8px; }
+.rd-stage img { display: block; width: 100%; height: auto; }
+.rd-boxes { position: absolute; inset: 0; width: 100%; height: 100%; }
+.rd-box { fill: transparent; stroke: #2563eb; stroke-width: 2; cursor: pointer; vector-effect: non-scaling-stroke; }
+.rd-box.change { stroke: #ea580c; fill: rgba(234, 88, 12, 0.12); }
+.rd-box.remove { stroke: #dc2626; stroke-dasharray: 6 4; fill: rgba(220, 38, 38, 0.10); }
+.rd-box.active { stroke-width: 3; }
+.rd-boxes text { fill: #1e3a8a; font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 3px; pointer-events: none; }
+.rd-palette { display: flex; gap: 6px; align-items: center; margin: 10px 0; flex-wrap: wrap; }
+.rd-palette .swatch { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line, #e4e4e7); }
+.rd-layers { display: grid; gap: 8px; }
+.rd-layer { display: flex; gap: 10px; align-items: flex-start; padding: 8px; border: 1px solid var(--line, #e4e4e7); border-radius: 8px; cursor: pointer; }
+.rd-layer.active { border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb; }
+.rd-layer img { width: 64px; height: 64px; object-fit: contain; background: repeating-conic-gradient(#e7e7ea 0% 25%, #fff 0% 50%) 0 0 / 12px 12px; border-radius: 6px; flex: none; }
+.rd-layer .row { gap: 8px; margin-top: 4px; justify-content: flex-start; }
+.rd-layer input[type=text] { width: 100%; margin-top: 6px; }
+#rd-text { width: 100%; font: 12px ui-monospace, monospace; }
+#rd-goal { display: block; width: 100%; margin-top: 4px; }
