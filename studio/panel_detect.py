@@ -2,9 +2,8 @@
 
 SAM 3 (Meta, SAM License: commercial use allowed) segments every instance of a short text
 prompt. We ask for the whole garment, its sleeves and its hood, cut sleeves and hood out of the
-garment to get the body, and give each style panel the segment nearest to where that panel
-usually sits (styles.DEFAULT_QUADS: front on the left, back on the right). Each segment becomes
-4 corners. The user still checks and drags the corners before saving; nothing here is final.
+garment to get the body, and name the segments by layout (see assign: front view on the left,
+back view on the right, or a front view alone). Each segment becomes 4 corners. The user still checks and drags the corners before saving; nothing here is final.
 
 The weights are gated on Hugging Face (facebook/sam3): request access there, then
 `.venv/bin/hf auth login` once on the Mac. Needs transformers >= 5, torch and torchvision.
@@ -24,7 +23,6 @@ import styles
 MODEL = 'facebook/sam3'
 WORK_EDGE = 1600   # the model sees ~1008 px; masks come back at this size
 SCORE = 0.4        # instance confidence kept
-MAX_DIST = 0.35    # a segment farther than this (image widths) from a panel's usual place is not it
 GARMENT = {'sweater': 'sweater', 'hoodie_pullover': 'hoodie', 'hoodie_zip': 'hoodie', 'tshirt': 't-shirt'}
 ROLE = {'Front': 'body', 'Back': 'body', 'FrontLeft': 'body', 'FrontRight': 'body',
         'Left': 'sleeve', 'Right': 'sleeve', 'Sleeve': 'sleeve', 'Hood': 'hood'}
@@ -116,11 +114,67 @@ def quad(mask, slanted=False):
     return _order([hull[np.argmin(x + y)], hull[np.argmax(x - y)], hull[np.argmax(x + y)], hull[np.argmin(x - y)]])
 
 
-def _centre(points):
-    return np.asarray(points, np.float64).mean(0)
+def _cx(mask):
+    return float(np.nonzero(mask.any(0))[0].mean())
 
 
-def propose(bgr, style_id, segment):
+def _thick(mask):
+    """The mask without thin parts (drawstrings hanging from the hood), else the mask itself."""
+    k = max(5, round(min(mask.shape) * 0.04)) | 1
+    opened = _clean(cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_OPEN,
+                                     cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))) > 0)
+    return opened if opened is not None else mask
+
+
+def assign(bodies, sleeves, hoods, zip_front=False):
+    """{panel: (mask, role)}. Views are read left to right: the first (largest two) body is the
+    front, the next the back, and a photo with one view is a front. A sleeve belongs to the body
+    whose middle is closest. On the front view the sleeve on the image's left is the wearer's
+    Right; on the back view it is the wearer's Left. The hood goes with the back view when there
+    is one (that is where its print shows), else with the front."""
+    out = {}
+    views = sorted(sorted(bodies, key=lambda b: -int(b.sum()))[:2], key=_cx)
+    front = views[0] if views else None
+    back = views[1] if len(views) > 1 else None
+    if zip_front and front is not None:
+        mid = int(round(_cx(front)))
+        left, right = front.copy(), front.copy()
+        left[:, mid:] = False
+        right[:, :mid] = False
+        for name, half in (('FrontLeft', _clean(left)), ('FrontRight', _clean(right))):
+            if half is not None:
+                out[name] = (half, 'body')
+    elif front is not None:
+        out['Front'] = (front, 'body')
+    if back is not None:
+        out['Back'] = (back, 'body')
+    by_view = {0: [], 1: []}
+    for s in sleeves:
+        if views:
+            i = min(range(len(views)), key=lambda v: abs(_cx(s) - _cx(views[v])))
+            by_view[i].append(s)
+    for i, mirrored in ((0, False), (1, True)):
+        own = sorted(by_view[i], key=lambda s: -int(s.sum()))[:2]
+        if not own or (i == 1 and ('Left' in out or 'Right' in out or 'Sleeve' in out)):
+            continue
+        out.setdefault('Sleeve', (own[0], 'sleeve'))
+        centre = _cx(views[i])
+        for s in own:
+            image_left = _cx(s) < centre
+            name = 'Left' if image_left == mirrored else 'Right'
+            out.setdefault(name, (s, 'sleeve'))
+    if hoods:
+        anchor = back if back is not None else front
+        pick = max(hoods, key=lambda m: int(m.sum()))
+        if anchor is not None:
+            xs = np.nonzero(anchor.any(0))[0]
+            over = [m for m in hoods if xs.min() <= _cx(m) <= xs.max()]
+            pick = max(over, key=lambda m: int(m.sum())) if over else min(hoods, key=lambda m: abs(_cx(m) - _cx(anchor)))
+        out['Hood'] = (pick, 'hood')
+    return out
+
+
+def propose(bgr, style_id, segment, debug=None):
     """{'quads': {panel: [[x, y] x4] normalized}, 'found': [...], 'missing': [...]} for the main
     panels of a style. segment: see sam3_segmenter (tests pass a fake)."""
     style = styles.BY_ID.get(style_id)
@@ -134,6 +188,9 @@ def propose(bgr, style_id, segment):
     prompts = [garment, 'sleeve'] + (['hood'] if style_id.startswith('hoodie') else [])
     found = segment(np.ascontiguousarray(small[..., ::-1]), prompts)
 
+    if debug is not None:
+        debug.update(found)
+
     def parts(prompt):
         return [m for m in (_clean(mask) for mask, score in found.get(prompt, []) if score >= SCORE) if m is not None]
 
@@ -145,35 +202,12 @@ def propose(bgr, style_id, segment):
     bodies = [b for b in (_clean(m & ~cut) for m in parts(garment)) if b is not None]
 
     names = [n for n, _, kind in style['panels'] if kind == 'main' and n in ROLE]
-    if 'FrontLeft' in names:
-        # Full zip: the front body splits at its middle; FrontLeft is the half on the image's left.
-        defaults = styles.DEFAULT_QUADS
-        front = min(bodies, key=lambda b: np.hypot(*(_centre(np.argwhere(b)[:, ::-1]) / [sw, sh] - _centre(defaults['Front']))),
-                    default=None)
-        if front is not None:
-            mid = int(round(np.nonzero(front.any(0))[0].mean()))
-            left, right = front.copy(), front.copy()
-            left[:, mid:] = False
-            right[:, :mid] = False
-            bodies = [b for b in bodies if b is not front] + [b for b in (_clean(left), _clean(right)) if b is not None]
-    pools = {'body': bodies, 'sleeve': sleeves, 'hood': hoods}
-
-    # Greedy: the closest (segment, panel) pair first, each segment used once.
-    pairs = []
-    for name in names:
-        want = _centre(styles.DEFAULT_QUADS[name])
-        for i, m in enumerate(pools[ROLE[name]]):
-            ys, xs = np.nonzero(m)
-            d = float(np.hypot(xs.mean() / sw - want[0], ys.mean() / sh - want[1]))
-            if d <= MAX_DIST:
-                pairs.append((d, name, ROLE[name], i))
-    quads, used = {}, set()
-    for d, name, role, i in sorted(pairs):
-        if name in quads or (role, i) in used:
-            continue
-        used.add((role, i))
-        corners = quad(pools[role][i], slanted=role == 'sleeve')
-        quads[name] = [[round(min(1, max(0, x / sw)), 4), round(min(1, max(0, y / sh)), 4)] for x, y in corners]
+    chosen = assign(bodies, sleeves, hoods, zip_front='FrontLeft' in names)
+    quads = {}
+    for name, (mask, role) in chosen.items():
+        if name in names:
+            corners = quad(_thick(mask) if role == 'hood' else mask, slanted=role == 'sleeve')
+            quads[name] = [[round(min(1, max(0, x / sw)), 4), round(min(1, max(0, y / sh)), 4)] for x, y in corners]
     return {'quads': quads, 'found': [n for n in names if n in quads],
             'missing': [n for n in names if n not in quads],
             'counts': {'body': len(bodies), 'sleeve': len(sleeves), 'hood': len(hoods)}}
@@ -191,6 +225,13 @@ def overlay(bgr, quads):
     return out
 
 
+def raw_size(raw, bgr):
+    for regions in raw.values():
+        if regions:
+            return regions[0][0].shape[::-1]
+    return bgr.shape[1::-1]
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description='Thử SAM 3 tìm các mảnh áo trên một ảnh mockup.')
     ap.add_argument('image')
@@ -199,8 +240,9 @@ def main(argv=None):
     bgr = cv2.imread(a.image, cv2.IMREAD_COLOR)
     if bgr is None:
         sys.exit('Không đọc được ảnh.')
+    raw = {}
     try:
-        result = propose(bgr, a.style, sam3_segmenter())
+        result = propose(bgr, a.style, sam3_segmenter(), debug=raw)
     except Unavailable as exc:
         sys.exit(str(exc))
     out = Path(a.image).with_name(Path(a.image).stem + '.sam3.jpg')
@@ -210,6 +252,15 @@ def main(argv=None):
         print('Chưa thấy:', ', '.join(result['missing']))
     print('Số vùng SAM 3 trả về:', result['counts'])
     print('Ảnh kiểm tra:', out)
+    # Every raw SAM 3 region in its own colour (garment blue, sleeve green, hood red), to tune by.
+    small = cv2.resize(bgr, raw_size(raw, bgr), interpolation=cv2.INTER_AREA)
+    tint = small.astype(np.float32)
+    for prompt, colour in zip(raw, ((255, 120, 0), (0, 200, 0), (0, 0, 255))):
+        for mask, score in raw[prompt]:
+            tint[mask] = tint[mask] * 0.6 + np.float32(colour) * 0.4
+    masks = Path(a.image).with_name(Path(a.image).stem + '.sam3-vung.jpg')
+    cv2.imwrite(str(masks), tint.astype(np.uint8))
+    print('Ảnh các vùng SAM 3:', masks)
 
 
 if __name__ == '__main__':

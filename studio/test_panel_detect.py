@@ -86,6 +86,26 @@ class ProposeTests(unittest.TestCase):
         self.assertEqual(set(r['found']), {'Front', 'Back'})
         self.assertEqual(set(r['missing']), {'Left', 'Right'})
 
+    def test_front_view_only_like_a_product_photo(self):
+        """One hoodie seen from the front, sleeves on both sides, drawstrings hanging off the hood."""
+        h, w = 720, 680
+        body = poly(h, w, [(0.20, 0.18), (0.80, 0.18), (0.78, 0.98), (0.22, 0.98)])
+        sl_left = poly(h, w, [(0.02, 0.22), (0.20, 0.20), (0.18, 0.95), (0.01, 0.95)])
+        sl_right = poly(h, w, [(0.80, 0.20), (0.98, 0.22), (0.99, 0.95), (0.82, 0.95)])
+        hood = poly(h, w, [(0.33, 0.01), (0.67, 0.01), (0.64, 0.17), (0.36, 0.17)])
+        strings = hood | poly(h, w, [(0.45, 0.17), (0.46, 0.17), (0.46, 0.58), (0.45, 0.58)]) \
+            | poly(h, w, [(0.55, 0.17), (0.56, 0.17), (0.56, 0.58), (0.55, 0.58)])
+        found = {'hoodie': [(body | sl_left | sl_right | hood, 0.9)],
+                 'sleeve': [(sl_left, 0.8), (sl_right, 0.8)], 'hood': [(strings, 0.7)]}
+        r = pd.propose(np.full((h, w, 3), 200, np.uint8), 'hoodie_pullover', fake(found))
+        self.assertEqual(set(r['found']), {'Front', 'Hood', 'Left', 'Right'})
+        self.assertEqual(r['missing'], ['Back'])
+        self.assertLess(np.mean([p[0] for p in r['quads']['Right']]), 0.2)
+        self.assertGreater(np.mean([p[0] for p in r['quads']['Left']]), 0.8)
+        self.assertLess(max(p[1] for p in r['quads']['Hood']), 0.22)   # strings dropped
+        self.assertTrue(near(r['quads']['Front'], [[0.2, 0.18], [0.8, 0.18], [0.78, 0.98], [0.22, 0.98]], 0.02),
+                        r['quads']['Front'])
+
     def test_large_photo_is_shrunk_and_far_segments_ignored(self):
         h, w = 2400, 3600
         img = np.full((h, w, 3), 240, np.uint8)
