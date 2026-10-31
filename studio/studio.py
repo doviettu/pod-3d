@@ -866,6 +866,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(200, self.server.v2.google_sync(data))
             elif self.path == "/api/v2/templates":
                 self.send_json(201, self.server.v2.create_template(data))
+            elif self.path == "/api/v2/templates/auto-quads":
+                self.send_json(200, self.server.v2.auto_quads(data))
             elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/rights", self.path):
                 self.send_json(200, self.server.v2.set_rights(self.path.split("/")[4], data))
             elif re.fullmatch(r"/api/v2/jobs/[a-f0-9]{32}/approve", self.path):

@@ -498,6 +498,22 @@ function markingTools() {
         } }, `${on ? '' : '+ '}${p.name}`);
     })),
     el('div', { class: 'row' }, label,
+      el('button', { type: 'button', title: 'SAM 3 chạy trên Mac, lần đầu tải model ~3 GB', onclick: async event => {
+        event.target.disabled = true;
+        note('3d', 'SAM 3 đang tìm các mảnh (khoảng 20–60 giây)…');
+        try {
+          const r = await api('/api/v2/templates/auto-quads', { source_id: state['3d'].sources[0].source_id, style: m.style });
+          for (const [name, quad] of Object.entries(r.quads)) m.quads[name] = quad;
+          if (r.found.length) m.active = r.found[0];
+          renderSources('3d');
+          note('3d', r.found.length
+            ? `SAM 3 đã đặt ${r.found.join(', ')}.${r.missing.length ? ' Chưa thấy ' + r.missing.join(', ') + ': đánh dấu tay.' : ''} Hãy kiểm tra và kéo lại góc nếu lệch.`
+            : 'SAM 3 không tìm được mảnh nào trên ảnh này; hãy đánh dấu tay.', !r.found.length);
+        } catch (error) {
+          note('3d', error.message, true);
+          event.target.disabled = false;
+        }
+      } }, 'Tự tìm mảnh'),
       el('button', { type: 'button', onclick: () => { state['3d'].marking = null; renderSources('3d'); } }, 'Huỷ'),
       el('button', { type: 'button', class: 'accent', onclick: async event => {
         const names = Object.keys(m.quads);

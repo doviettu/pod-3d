@@ -21,6 +21,7 @@ import art2d
 import gdrive
 import listing
 import mockups
+import panel_detect
 import preflight
 import rights
 import sources
@@ -45,6 +46,8 @@ class StudioV2:
         self.store = JobStore(self.runtime / 'studio.db')
         self.rights = rights.RightsChecker(self.runtime)
         self.mockups = mockups.MockupLibrary(self.runtime / 'mockups')
+        self.segmenter = None   # panel_detect.sam3_segmenter() on first use; tests set a fake
+        self.detect_lock = threading.Lock()
         self.lock = threading.Lock()
         self.google = gdrive.Google(gdrive.GoogleConfig(google_config), google_transport or gdrive.urllib_transport)
         self.drive = gdrive.DriveSync(self.google, self.runtime / 'drive-queue.json', self._drive_bundle,
@@ -86,6 +89,21 @@ class StudioV2:
         with self.lock:
             created = self.library.create(path, data, build_maps)
         return {**created, 'template': self.engine.template_info(created['name'])}
+
+    def auto_quads(self, data):
+        """Starting quads for marking a new template, found by SAM 3 on the source photo."""
+        data = data or {}
+        bgr = cv2.imread(str(self._cached(data.get('source_id'))), cv2.IMREAD_COLOR)
+        if bgr is None:
+            raise ValueError('Không đọc được ảnh mockup.')
+        if not self.detect_lock.acquire(blocking=False):
+            raise ValueError('SAM 3 đang chạy cho ảnh khác; thử lại sau ít giây.')
+        try:
+            if self.segmenter is None:
+                self.segmenter = panel_detect.sam3_segmenter()
+            return panel_detect.propose(bgr, data.get('style'), self.segmenter)
+        finally:
+            self.detect_lock.release()
 
     def template_preview(self, name):
         if name not in self.engine.templates.available():
