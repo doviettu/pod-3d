@@ -103,6 +103,11 @@ class ProposeTests(unittest.TestCase):
         self.assertLess(np.mean([p[0] for p in r['quads']['Right']]), 0.2)
         self.assertGreater(np.mean([p[0] for p in r['quads']['Left']]), 0.8)
         self.assertLess(max(p[1] for p in r['quads']['Hood']), 0.22)   # strings dropped
+        debug = {}
+        pd.propose(np.full((h, w, 3), 200, np.uint8), 'hoodie_pullover', fake(found), debug=debug)
+        string = poly(h, w, [(0.45, 0.30), (0.46, 0.30), (0.46, 0.50), (0.45, 0.50)])
+        self.assertFalse((debug['panels']['Hood'] & string).any())
+        self.assertTrue(debug['panels']['Front'][string].all())   # strings hang over the front print
         self.assertTrue(near(r['quads']['Front'], [[0.2, 0.18], [0.8, 0.18], [0.78, 0.98], [0.22, 0.98]], 0.02),
                         r['quads']['Front'])
 

@@ -221,7 +221,9 @@ def propose(bgr, style_id, segment, debug=None):
     def parts(prompt):
         return [m for m in (_clean(mask) for mask, score in found.get(prompt, []) if score >= SCORE) if m is not None]
 
-    sleeves, hoods = parts('sleeve'), parts('hood')
+    # Drawstrings come back as part of the hood; they hang over the front print, so the strings
+    # stay with the body and only the thick hood is cut out.
+    sleeves, hoods = parts('sleeve'), [_thick(m) for m in parts('hood')]
     cut = np.zeros((sh, sw), bool)
     for m in sleeves + hoods:
         cut |= m
@@ -235,7 +237,7 @@ def propose(bgr, style_id, segment, debug=None):
     quads = {}
     for name, (mask, role) in chosen.items():
         if name in names:
-            corners = quad(_thick(mask) if role == 'hood' else mask, slanted=role == 'sleeve')
+            corners = quad(mask, slanted=role == 'sleeve')
             quads[name] = [[round(min(1, max(0, x / sw)), 4), round(min(1, max(0, y / sh)), 4)] for x, y in corners]
     return {'quads': quads, 'found': [n for n in names if n in quads],
             'missing': [n for n in names if n not in quads],
