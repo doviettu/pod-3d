@@ -7,6 +7,9 @@ PNG. The user marks each layer keep / change / remove, and build_prompt writes o
 brief ("change only these, keep everything else") plus the chosen Skill files, to paste into
 an image tool or the Hỏi Claude tab. Nothing here calls a paid API.
 
+Step 2 (redesign_edit.py) changes the layers on this Mac and saves edit-<n>.png, plus palette
+variants var-<n>-<k>.png; redesign_ai.py lets the signed-in Claude Code describe the design.
+
 runtime/redesign/<id>/ holds source.png, scene.json and layer-<n>.png.
 """
 from datetime import datetime
@@ -195,13 +198,13 @@ def cutout(rgba, mask, bbox):
 
 
 def skills(root=SKILLS):
-    """Skill files: [{id, title, summary}] from studio/skills/*.md (first heading, first line)."""
+    """Skill files: [{id, title, summary, body}] from studio/skills/*.md (first heading, first line)."""
     out = []
     for path in sorted(Path(root).glob('*.md')):
         lines = [l.strip() for l in path.read_text(encoding='utf-8').splitlines() if l.strip()]
         title = next((l.lstrip('# ') for l in lines if l.startswith('#')), path.stem)
         summary = next((l for l in lines if not l.startswith('#')), '')
-        out.append({'id': path.stem, 'title': title, 'summary': summary[:200]})
+        out.append({'id': path.stem, 'title': title, 'summary': summary[:200], 'body': '\n'.join(lines)[:6000]})
     return out
 
 
@@ -210,6 +213,17 @@ def _box(b, size):
     w, h = size
     x, y, bw, bh = b
     return f'x {x / w * 100:.0f}-{(x + bw) / w * 100:.0f}%, y {y / h * 100:.0f}-{(y + bh) / h * 100:.0f}%'
+
+
+def _analysis_lines(a):
+    """What Claude found, as brief lines the image model should respect."""
+    if not a:
+        return []
+    out = [f'{label}: {a[k]}' for k, label in (('subject', 'Subject'), ('layout', 'Layout'), ('style', 'Style'),
+                                                ('typography', 'Typography'), ('effects', 'Print effects')) if a.get(k)]
+    if a.get('sells', {}).get('formula'):
+        out.append(f'Why it sells (keep this formula): {a["sells"]["formula"]}')
+    return out
 
 
 def build_prompt(scene, choices, goal='', skill_ids=(), root=SKILLS):
@@ -246,6 +260,7 @@ def build_prompt(scene, choices, goal='', skill_ids=(), root=SKILLS):
         'Edit this print design for a garment. Change ONLY the layers marked CHANGE or REMOVE below; '
         'every other element must stay pixel-identical in position, size, colour, spelling and style.',
         f'Canvas: {size[0]} x {size[1]} px, {canvas}. Current palette: {palette}.',
+        *_analysis_lines(scene.get('analysis')),
         *( [f'Goal of the redesign: {goal.strip()[:600]}'] if goal.strip() else [] ),
         'Layers (positions are shares of the canvas):',
         *lines,
@@ -306,12 +321,81 @@ class RedesignStore:
         return scene
 
     def file(self, rid, name):
-        if not re.fullmatch(r'source\.png|layer-\d{1,3}\.png', name or ''):
+        if not re.fullmatch(r'source\.png|layer-\d{1,3}\.png|edit-\d{1,4}\.png|var-\d{1,4}-\d\.png', name or ''):
             raise FileNotFoundError()
         path = self._folder(rid) / name
         if not path.is_file():
             raise FileNotFoundError()
         return path
+
+    def _save_scene(self, scene):
+        keep = {k: v for k, v in scene.items() if k != 'source_url'}
+        keep['layers'] = [{k: v for k, v in l.items() if k != 'url'} for l in scene['layers']]
+        (self._folder(scene['id']) / 'scene.json').write_text(json.dumps(keep, ensure_ascii=False, indent=1))
+
+    def analyze_ai(self, rid, runner=None):
+        """Claude's reading of the design (structure, why it sells, layer names, 3 concepts)."""
+        import redesign_ai
+        scene = self.get(rid)
+        analysis = redesign_ai.analyze(self._folder(rid), scene, **({'runner': runner} if runner else {}))
+        scene['analysis'] = analysis
+        for layer in scene['layers']:
+            if layer['id'] in analysis['layers'] and layer['type'] != 'text':
+                layer['label'] = analysis['layers'][layer['id']]
+        self._save_scene(scene)
+        return self.get(rid)
+
+    def _apply(self, rid, data, resolve_font):
+        import redesign_edit
+        folder = self._folder(rid)
+        scene = self.get(rid)
+        with Image.open(folder / 'source.png') as im:
+            source = np.asarray(im.convert('RGBA')).copy()
+
+        def cut(name):
+            with Image.open(self.file(rid, name)) as im:
+                return np.asarray(im.convert('RGBA'))
+        data = data or {}
+        image = redesign_edit.apply(source, scene, cut, data.get('layers') or {}, data.get('palette') or {}, resolve_font)
+        return scene, folder, image
+
+    def _next(self, folder):
+        nums = [int(p.stem.split('-')[1]) for p in folder.glob('edit-*.png')]
+        return max(nums, default=0) + 1
+
+    def edit(self, rid, data, resolve_font=None):
+        """Apply step 2 edits; saves edit-<n>.png and returns its url and the Skill checks."""
+        import redesign_edit
+        scene, folder, image = self._apply(rid, data, resolve_font)
+        with self.lock:
+            n = self._next(folder)
+            Image.fromarray(image).save(folder / f'edit-{n}.png')
+        (folder / f'edit-{n}.json').write_text(json.dumps(data or {}, ensure_ascii=False))
+        return {'n': n, 'url': f'/api/v2/redesign/{rid}/edit-{n}.png',
+                'checks': redesign_edit.check(image, scene.get('background'))}
+
+    def variants(self, rid, data, resolve_font=None):
+        """The same edits in up to 4 preset palettes, to compare side by side."""
+        import redesign_edit
+        data = data or {}
+        presets = data.get('presets') or []
+        if not isinstance(presets, list) or not 1 <= len(presets) <= 4:
+            raise ValueError('Chọn 1 đến 4 bộ màu để tạo biến thể.')
+        scene, folder, base = self._apply(rid, {**data, 'palette': {}}, resolve_font)
+        with self.lock:
+            n = self._next(folder)
+            Image.fromarray(base).save(folder / f'edit-{n}.png')
+        out = []
+        for k, preset in enumerate(presets):
+            pairs = redesign_edit._palette_map(redesign_edit.preset_pairs(scene['palette'], preset), scene['palette'])
+            # Moved or retyped layers are no longer where the masks say, so recolour all ink.
+            ink = redesign_edit.ink_of(base, scene.get('background'))
+            image = redesign_edit.recolor_palette(base, ink, scene['palette'], pairs)
+            Image.fromarray(image).save(folder / f'var-{n}-{k}.png')
+            out.append({'preset': preset, 'label': redesign_edit.PRESETS[preset][0],
+                        'url': f'/api/v2/redesign/{rid}/var-{n}-{k}.png',
+                        'checks': redesign_edit.check(image, scene.get('background'))})
+        return {'n': n, 'variants': out}
 
     def prompt(self, rid, data):
         data = data or {}

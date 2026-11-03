@@ -1345,12 +1345,24 @@ $('#restart').addEventListener('click', async event => {
 
 // ---------- redesign ----------
 // Step 1: split a design into layers, mark keep / change / remove, export a brief + Skills.
-const rd = { scene: null, active: null, choices: {}, art: null, out: null };
+// Step 2: change layers on the Mac (no AI), palette variants, Skill checks; Claude reads the design.
+const rd = { scene: null, active: null, choices: {}, art: null, out: null,
+  local: {}, open: new Set(), remap: {}, view: 'source', edit: null, fonts: [], presets: [], skills: [] };
+const RD_EFFECT = { none: 'Không', outline: 'Viền', shadow: 'Bóng đổ', distress: 'Mài mòn' };
 const RD_TYPE = { text: 'Chữ', graphic: 'Hình', object: 'Đối tượng' };
 
 async function loadRedesign() {
   try {
-    const [jobs, skills] = await Promise.all([api('/api/v2/jobs?kind=2d'), api('/api/v2/skills')]);
+    const [jobs, skills, fonts] = await Promise.all([api('/api/v2/jobs?kind=2d'), api('/api/v2/skills'),
+      api('/api/fonts').catch(() => [])]);
+    rd.fonts = fonts;
+    rd.presets = skills.presets || [];
+    rd.skills = skills.skills;
+    if (!$('#rd-presets').children.length) {
+      $('#rd-presets').replaceChildren(...rd.presets.map(p => el('label', { class: 'check' },
+        el('input', { type: 'checkbox', value: p.id }), ` ${p.label}`,
+        el('span', { class: 'dots' }, p.colors.map(c => el('i', { style: `background:${c}` }))))));
+    }
     const keep = $('#rd-job').value;
     const done = jobs.filter(j => ['review', 'approved'].includes(j.status) && j.outputs.sides);
     $('#rd-job').replaceChildren(el('option', { value: '' }, '— chọn job —'),
@@ -1380,9 +1392,7 @@ $('#rd-analyze').addEventListener('click', async event => {
   note('rd', body.sam3 ? 'Đang tách lớp (có SAM 3, khoảng 20–60 giây)…' : 'Đang tách lớp…');
   try {
     rd.scene = await api('/api/v2/redesign', body);
-    rd.choices = {};
-    rd.active = null;
-    $('#rd-out').hidden = true;
+    rdReset();
     rdRender();
     const s = rd.scene;
     note('rd', `Tách được ${s.layers.length} lớp.${s.ocr ? '' : ' Chưa đọc chữ (cài Tesseract trên Mac: brew install tesseract).'}`);
@@ -1393,6 +1403,137 @@ $('#rd-analyze').addEventListener('click', async event => {
   }
 });
 
+function rdReset() {
+  Object.assign(rd, { choices: {}, active: null, local: {}, open: new Set(), remap: {}, view: 'source', edit: null });
+  $('#rd-out').hidden = true;
+  $('#rd-result').hidden = true;
+  $('#rd-vars').replaceChildren();
+}
+
+$('#rd-ai').addEventListener('click', async event => {
+  if (!rd.scene) { note('rd', 'Hãy bấm Phân tích (tách lớp) trước.', true); return; }
+  event.target.disabled = true;
+  note('rd', 'Claude trên Mac đang đọc thiết kế (khoảng 30–90 giây)…');
+  try {
+    rd.scene = await api(`/api/v2/redesign/${rd.scene.id}/analyze-ai`, {});
+    rdRender();
+    note('rd', `Claude đã phân tích xong${rd.scene.analysis.concepts.length ? `, gợi ý ${rd.scene.analysis.concepts.length} concept` : ''}.`);
+  } catch (error) { note('rd', error.message, true); }
+  finally { event.target.disabled = false; }
+});
+
+function rdLocal(id) {
+  return rd.local[id] || (rd.local[id] = { text: '', font: '', useColor: false, color: '#000000', dx: 0, dy: 0, scale: 1, effect: 'none', effect_color: '#111111' });
+}
+
+function rdLocalBox(layer) {
+  const l = rdLocal(layer.id);
+  const num = (key, label, step, min, max) => el('label', {}, label,
+    el('input', { type: 'number', step, min, max, value: l[key], oninput: e => { l[key] = Number(e.target.value) || (key === 'scale' ? 1 : 0); } }));
+  const fields = [];
+  if (layer.type === 'text') {
+    fields.push(el('label', {}, 'Chữ mới', el('input', { type: 'text', maxlength: '120', value: l.text, placeholder: layer.text, oninput: e => { l.text = e.target.value; } })),
+      el('label', {}, 'Font', el('select', { onchange: e => { l.font = e.target.value; } },
+        el('option', { value: '' }, 'Mặc định (Arial đậm)'),
+        ...rd.fonts.map(f => el('option', { value: f.id, selected: l.font === f.id }, f.name)))));
+  }
+  fields.push(
+    el('label', {}, el('span', {}, el('input', { type: 'checkbox', checked: l.useColor, onchange: e => { l.useColor = e.target.checked; } }), ' Đổi màu lớp'),
+      el('input', { type: 'color', value: l.useColor ? l.color : (layer.color || '#000000'), oninput: e => { l.color = e.target.value; l.useColor = true; rdRender(); } })),
+    num('dx', 'Dời ngang (% khung)', 1, -100, 100), num('dy', 'Dời dọc (% khung)', 1, -100, 100),
+    num('scale', 'Cỡ (1 = giữ)', 0.05, 0.2, 4),
+    el('label', {}, 'Hiệu ứng', el('select', { onchange: e => { l.effect = e.target.value; } },
+      ...Object.entries(RD_EFFECT).map(([v, t]) => el('option', { value: v, selected: l.effect === v }, t)))),
+    el('label', {}, 'Màu hiệu ứng', el('input', { type: 'color', value: l.effect_color, oninput: e => { l.effect_color = e.target.value; } })));
+  const box = el('details', { class: 'rd-local', open: rd.open.has(layer.id), onclick: e => e.stopPropagation() },
+    el('summary', {}, 'Sửa trên máy'), el('div', { class: 'grid2' }, fields));
+  box.addEventListener('toggle', () => { if (box.open) rd.open.add(layer.id); else rd.open.delete(layer.id); });
+  return box;
+}
+
+function rdEdits() {
+  const layers = {};
+  for (const layer of rd.scene.layers) {
+    const c = rdChoice(layer.id);
+    const l = rd.local[layer.id];
+    const e = {};
+    if (c.action === 'remove') e.remove = true;
+    if (l) {
+      if (l.text.trim() && l.text.trim() !== layer.text) { e.text = l.text.trim(); if (l.font) e.font = l.font; }
+      if (l.useColor) e.color = l.color;
+      if (l.dx) e.dx = l.dx;
+      if (l.dy) e.dy = l.dy;
+      if (l.scale !== 1) e.scale = l.scale;
+      if (l.effect !== 'none') { e.effect = l.effect; e.effect_color = l.effect_color; }
+    }
+    if (Object.keys(e).length) layers[layer.id] = e;
+  }
+  const palette = Object.fromEntries(Object.entries(rd.remap).filter(([a, b]) => a !== b));
+  return { layers, palette };
+}
+
+function rdChecks(checks) {
+  return el('ul', { class: 'rd-checks' }, checks.map(c => el('li', { class: c.ok ? 'ok' : 'bad' }, `${c.ok ? '✓' : '!'} ${c.label}: ${c.detail}`)));
+}
+
+$('#rd-apply').addEventListener('click', async event => {
+  if (!rd.scene) { note('rd', 'Hãy phân tích một thiết kế trước.', true); return; }
+  event.target.disabled = true;
+  note('rd', 'Đang sửa trên máy…');
+  try {
+    rd.edit = await api(`/api/v2/redesign/${rd.scene.id}/edit`, rdEdits());
+    rd.view = 'edit';
+    rdRender();
+    $('#rd-result').hidden = false;
+    $('#rd-result').replaceChildren(
+      el('figure', {}, el('img', { src: rd.edit.url, alt: 'Bản sửa' })),
+      rdChecks(rd.edit.checks),
+      el('div', { class: 'actions' },
+        el('a', { class: 'button', href: rd.edit.url, download: `${rd.scene.id}-edit-${rd.edit.n}.png` }, 'Tải PNG'),
+        el('button', { onclick: () => rdAskScore(rd.edit.url) }, 'Nhờ Claude chấm theo Skill')));
+    note('rd', `Đã lưu bản sửa số ${rd.edit.n}. Lớp không đụng tới giữ nguyên từng điểm ảnh.`);
+  } catch (error) { note('rd', error.message, true); }
+  finally { event.target.disabled = false; }
+});
+
+$('#rd-variants').addEventListener('click', async event => {
+  if (!rd.scene) { note('rd', 'Hãy phân tích một thiết kế trước.', true); return; }
+  const presets = $$('#rd-presets input:checked').map(i => i.value);
+  if (!presets.length || presets.length > 4) { note('rd', 'Chọn 1 đến 4 bộ màu.', true); return; }
+  event.target.disabled = true;
+  note('rd', 'Đang tạo biến thể…');
+  try {
+    const out = await api(`/api/v2/redesign/${rd.scene.id}/variants`, { ...rdEdits(), presets });
+    $('#rd-vars').replaceChildren(...out.variants.map(v => el('figure', {},
+      el('img', { src: v.url, alt: v.label }),
+      el('figcaption', {}, el('b', {}, v.label), ' · ', el('a', { href: v.url, download: `${rd.scene.id}-${v.preset}.png` }, 'Tải PNG')),
+      rdChecks(v.checks))));
+    note('rd', `Đã tạo ${out.variants.length} biến thể.`);
+  } catch (error) { note('rd', error.message, true); }
+  finally { event.target.disabled = false; }
+});
+
+async function rdAskScore(url) {
+  const blob = await (await fetch(url)).blob();
+  addAttachments([new File([blob], `${rd.scene.id}-edit.png`, { type: 'image/png' })]);
+  const picked = new Set($$('#rd-skills input:checked').map(i => i.value));
+  const rules = rd.skills.filter(k => picked.has(k.id)).map(k => k.body).join('\n\n');
+  $('#chat-prompt').value = ('Chấm thiết kế đính kèm theo từng luật trong các Skill dưới đây. Với mỗi luật ghi Đạt / Chưa đạt và lý do ngắn, '
+    + 'rồi nêu 3 chỉnh sửa đáng làm nhất. Không vẽ lại.\n' + rules).slice(0, 8000);
+  $('.tabs button[data-tab="claude"]').click();
+}
+
+$$('#rd-view button').forEach(b => b.addEventListener('click', () => { rd.view = b.dataset.view; rdRender(); }));
+
+function rdAnalysis(a) {
+  if (!a) return null;
+  const row = (k, v) => v && (Array.isArray(v) ? v.length : true) ? [el('dt', {}, k), el('dd', {}, Array.isArray(v) ? v.join(' · ') : v)] : [];
+  const s = a.sells || {};
+  return el('dl', {}, row('Chủ thể', a.subject), row('Chữ', a.text), row('Bố cục', a.layout), row('Style', a.style),
+    row('Typography', a.typography), row('Họa tiết', a.motifs), row('Hiệu ứng', a.effects), row('Lỗi in', a.print_issues),
+    row('Hook', s.hook), row('Công thức bán', s.formula), row('Niche', s.niche), row('Tone', s.tone), row('Khách hàng', s.audience));
+}
+
 function rdChoice(id) {
   return rd.choices[id] || (rd.choices[id] = { action: 'keep', note: '' });
 }
@@ -1402,6 +1543,23 @@ function rdRender() {
   if (!s) return;
   const [w, h] = s.size;
   $('#rd-info').textContent = `${s.name || s.id} · ${w} × ${h} px · ${s.background ? 'nền đặc' : 'nền trong suốt'} · phủ mực ${s.ink_pct}%`;
+  const showEdit = rd.view === 'edit' && rd.edit;
+  $('#rd-view').hidden = !rd.edit;
+  $$('#rd-view button').forEach(b => b.classList.toggle('on', b.dataset.view === (showEdit ? 'edit' : 'source')));
+  const analysis = rdAnalysis(s.analysis);
+  $('#rd-analysis').hidden = !analysis;
+  $('#rd-analysis').replaceChildren(...(analysis ? [el('b', {}, 'Claude phân tích'), analysis] : []));
+  const concepts = s.analysis?.concepts || [];
+  $('#rd-concepts').replaceChildren(...(concepts.length ? [el('p', { class: 'muted' }, 'Concept gợi ý (bấm để điền sẵn):'),
+    el('div', { class: 'rd-concepts' }, concepts.map(c => el('button', { title: c.goal, onclick: () => {
+      rd.choices = JSON.parse(JSON.stringify(c.layers));
+      $('#rd-goal').value = c.goal;
+      rdRender();
+      note('rd', `Đã điền concept "${c.title}". Sửa thêm nếu cần rồi bấm Xuất brief.`);
+    } }, c.title)))] : []));
+  $('#rd-remap').replaceChildren(...s.palette.map(p => el('label', { title: `${p.hex} · ${p.pct}%` },
+    el('input', { type: 'color', value: rd.remap[p.hex] || p.hex, oninput: e => { rd.remap[p.hex] = e.target.value; } }),
+    `${Math.round(p.pct)}%`)));
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
   svg.classList.add('rd-boxes');
@@ -1417,7 +1575,7 @@ function rdRender() {
     t.textContent = layer.id;
     svg.append(r, t);
   }
-  $('#rd-stage').replaceChildren(el('img', { src: s.source_url, alt: 'Thiết kế' }), svg);
+  $('#rd-stage').replaceChildren(...(showEdit ? [el('img', { src: rd.edit.url, alt: 'Bản sửa' })] : [el('img', { src: s.source_url, alt: 'Thiết kế' }), svg]));
   $('#rd-palette').replaceChildren(...s.palette.map(p => el('span', { class: 'swatch', title: `${p.hex} · ${p.pct}%`, style: `background:${p.hex}` })),
     el('span', { class: 'muted' }, ' bảng màu chính'));
   $('#rd-layers').replaceChildren(...s.layers.map(layer => {
@@ -1434,7 +1592,7 @@ function rdRender() {
           el('select', { onchange: e => { c.action = e.target.value; rdRender(); } },
             ...[['keep', 'Giữ'], ['change', 'Sửa'], ['remove', 'Bỏ']].map(([v, l]) => el('option', { value: v, selected: c.action === v }, l))),
           el('a', { href: layer.url + '?download', download: `${s.id}-${layer.id}.png` }, 'Tải PNG')),
-        noteBox));
+        noteBox, rdLocalBox(layer)));
   }));
 }
 
