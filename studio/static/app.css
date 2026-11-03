@@ -176,3 +176,25 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 .rd-layer input[type=text] { width: 100%; margin-top: 6px; }
 #rd-text { width: 100%; font: 12px ui-monospace, monospace; }
 #rd-goal { display: block; width: 100%; margin-top: 4px; }
+.rd-view { gap: 6px; margin-bottom: 8px; justify-content: flex-start; }
+.rd-view button.on { background: #1e3a8a; color: #fff; }
+.rd-analysis { margin-top: 12px; display: grid; gap: 4px; font-size: 14px; }
+.rd-analysis dl { display: grid; grid-template-columns: 110px 1fr; gap: 4px 10px; margin: 0; }
+.rd-analysis dt { color: var(--muted, #71717a); }
+.rd-analysis dd { margin: 0; }
+.rd-concepts { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+.rd-local { margin-top: 6px; }
+.rd-local summary { cursor: pointer; color: #2563eb; }
+.rd-local .grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-top: 6px; }
+.rd-local label { font-size: 13px; display: grid; gap: 2px; }
+.rd-remap { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.rd-remap label { display: grid; justify-items: center; font-size: 11px; gap: 2px; }
+.rd-remap input[type=color] { width: 36px; height: 28px; padding: 0; border: 1px solid var(--line, #e4e4e7); border-radius: 6px; }
+.rd-presets { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.rd-presets .dots { display: inline-flex; gap: 2px; margin-left: 4px; vertical-align: middle; }
+.rd-presets .dots i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.rd-vars { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; }
+.rd-vars figure, #rd-result figure { margin: 0; }
+.rd-vars img, #rd-result img { width: 100%; background: repeating-conic-gradient(#e7e7ea 0% 25%, #fff 0% 50%) 0 0 / 12px 12px; border-radius: 6px; }
+.rd-checks { list-style: none; padding: 0; margin: 6px 0; font-size: 13px; }
+.rd-checks li.bad { color: #b45309; }
