@@ -19,14 +19,18 @@ def _solid_color(template, panel, mockup):
     return np.median(region.reshape(-1, 3), 0).astype(np.uint8)
 
 
-def make_panel(template, panel, mockup, log=print, use_model=True, m=None):
-    """m: map from clicked marks; the template's color transform belongs to its own mockup."""
+TWINS = {"Front": "Back", "Back": "Front"}  # same size, and on most all-over designs the same art
+
+
+def make_panel(template, panel, mockup, log=print, use_model=True, m=None, seen=None, twin=None):
+    """m: map from clicked marks; the template's color transform belongs to its own mockup.
+    seen: this panel's (work, cov) if already unwrapped; twin: the twin panel's (work, cov)."""
     out_w, out_h = panel.size
     if panel.source == "solid":
         c = _solid_color(template, panel, mockup)
         return np.full((out_h, out_w, 3), c, np.uint8), {"color": c.tolist()}
-    work, cov = unwrap(template, panel, mockup, color=m is None, m=m)
-    work = fill.fill(work, cov, log=log, mode="tile" if panel.method in ("strip", "tube") else "bands")
+    work, cov = seen or unwrap(template, panel, mockup, color=m is None, m=m)
+    work = fill.fill(work, cov, log=log, mode="tile" if panel.method in ("strip", "tube") else "bands", twin=twin)
     work, pal, frac = clean.clean(work)
     log(f"    {panel.name}: {100 * (cov >= 0.5).mean():.0f}% seen on mockup, {100 * frac:.0f}% flat colors")
     factor = out_w / work.shape[1]
@@ -60,21 +64,29 @@ def run(template: Template, mockup_path, out_dir, log=print, use_model=True, fmt
             f"(python -m pod3d mark), hoặc thêm --force để vẫn chạy.")
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    made = {}
+    made, maps = {}, {}
     for panel in template.panels:
         if panel.source == "copy":
             continue
-        m = None
         if clicked is not None and panel.source == "unwrap":
             if panel.name not in clicked:
                 log(f"  {panel.name}: not marked, skipped")
                 continue
-            m = marks.make_map(panel, clicked[panel.name], mockup.shape[1::-1])
+            maps[panel.name] = marks.make_map(panel, clicked[panel.name], mockup.shape[1::-1])
         elif panel.source == "unwrap" and not template.map_path(panel.name).exists():
             log(f"  {panel.name}: template has no map for this panel yet, skipped")
             continue
+        else:
+            maps[panel.name] = None
+    # Twins are unwrapped first so each can borrow what only the other one shows.
+    seen = {p.name: unwrap(template, p, mockup, color=maps[p.name] is None, m=maps[p.name])
+            for p in template.panels if p.name in TWINS and p.name in maps and p.source == "unwrap"}
+    for panel in template.panels:
+        if panel.name not in maps:
+            continue
         log(f"  {panel.name} ...")
-        img, info = make_panel(template, panel, mockup, log, use_model, m)
+        img, info = make_panel(template, panel, mockup, log, use_model, maps[panel.name],
+                               seen.get(panel.name), seen.get(TWINS.get(panel.name)))
         made[panel.name] = img
         path = out_dir / f"{panel.name}.{fmt}"
         io.write(path, img, dpi=template.dpi)

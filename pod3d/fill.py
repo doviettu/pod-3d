@@ -82,11 +82,24 @@ def tile(img, known):
     return out, left
 
 
-def fill(img, cov, thresh=0.5, log=print, mode="bands"):
+def fill(img, cov, thresh=0.5, log=print, mode="bands", twin=None):
     """Return the panel with uncovered pixels filled in. img: work-size BGR, cov: 0..1.
     mode "tile" is for sleeves, seen only as a narrow strip whose every row is a band.
-    Repeating bands are continued exactly, plain background is tiled, the rest goes to LaMa."""
+    twin: (img, cov) of a panel that may carry the same art (Back for Front and vice versa).
+    Pixels seen on the twin are borrowed, a 2D repeating pattern is continued exactly, then
+    repeating bands, plain background tiles, and only the rest goes to LaMa."""
+    from . import repeat
     known = solid_mask(cov, thresh)
+    if twin is not None:
+        img, grown, how = repeat.borrow(img, known, twin[0], solid_mask(twin[1], thresh))
+        if how:
+            log(f"    {100 * (grown & ~known).mean():.0f}% taken from the twin panel ({how})")
+            known = grown
+    if mode != "tile":
+        filled, left, vectors = repeat.lattice_fill(img, known)
+        if vectors is not None:
+            log(f"    all-over repeat found, {100 * (known ^ ~left).mean():.0f}% continued exactly")
+            img, known = filled, ~left
     out, left = tile(img, known) if mode == "tile" else repeat_bands(img, known)
     out, left = extend(out, ~left)
     t, tl = extend(out.transpose(1, 0, 2).copy(), ~left.T)  # rows above/below the seen area

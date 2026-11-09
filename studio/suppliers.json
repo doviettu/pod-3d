@@ -1,0 +1,46 @@
+{
+  "_note": "Hồ sơ nhà in cho bước kiểm tra file in (preflight). Sửa số theo file mẫu/hướng dẫn thật của nhà in. 'verified' = đã đối chiếu trang hướng dẫn chính thức (ngày ghi kèm).",
+  "profiles": {
+    "dtg": {
+      "label": "In DTG/DTF chung (2D)",
+      "kind": "2d",
+      "size": [4500, 5400],
+      "min_dpi": 300,
+      "formats": ["PNG"],
+      "max_mb": 100,
+      "transparent_ok": true,
+      "max_semi_alpha_pct": 3,
+      "min_line_mm": 0.5,
+      "min_speck_mm": 1.0,
+      "verified": null
+    },
+    "printify": {
+      "label": "Printify (2D)",
+      "kind": "2d",
+      "size": [4500, 5400],
+      "min_dpi": 150,
+      "good_dpi": 300,
+      "formats": ["PNG", "JPEG"],
+      "max_mb": 100,
+      "transparent_ok": true,
+      "max_semi_alpha_pct": 3,
+      "min_line_mm": 0.5,
+      "min_speck_mm": 1.0,
+      "verified": "2026-10-30 help.printify.com: PNG/JPG 300 DPI, 120-150 DPI chấp nhận cho sản phẩm lớn, tối đa 100 MB"
+    },
+    "aop": {
+      "label": "In tràn AOP / sublimation (3D)",
+      "kind": "3d",
+      "size": null,
+      "min_dpi": 150,
+      "good_dpi": 300,
+      "formats": ["PNG", "JPEG"],
+      "max_mb": 100,
+      "transparent_ok": false,
+      "max_semi_alpha_pct": 0,
+      "min_line_mm": 0.5,
+      "min_speck_mm": 0,
+      "verified": null
+    }
+  }
+}
