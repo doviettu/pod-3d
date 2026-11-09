@@ -469,7 +469,9 @@ class StudioV2:
 
     # ---- redesign ---------------------------------------------------------------
     def redesign_skills(self):
-        return {'skills': redesign.skills()}
+        import redesign_edit
+        return {'skills': redesign.skills(),
+                'presets': [{'id': k, 'label': v[0], 'colors': list(v[1])} for k, v in redesign_edit.PRESETS.items()]}
 
     def redesign_analyze(self, data):
         """Split a design (uploaded PNG or a finished 2D job side) into layers; SAM 3 on request."""
@@ -492,6 +494,19 @@ class StudioV2:
 
     def redesign_prompt(self, rid, data):
         return self.redesign.prompt(rid, data)
+
+    def _font_path(self, font_id):
+        review = getattr(self.engine, 'review', None)
+        return review.fonts.path(font_id) if review else None
+
+    def redesign_ai(self, rid):
+        return self.redesign.analyze_ai(rid)
+
+    def redesign_edit(self, rid, data):
+        return self.redesign.edit(rid, data, self._font_path)
+
+    def redesign_variants(self, rid, data):
+        return self.redesign.variants(rid, data, self._font_path)
 
     def _art(self, data):
         """The design to place: an uploaded PNG, or a side of a finished 2D job."""

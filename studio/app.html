@@ -168,7 +168,12 @@
       <div class="panel">
         <h2>Redesign · tách lớp</h2>
         <p class="muted" id="rd-info">Chọn một thiết kế ở cột bên phải rồi bấm <b>Phân tích</b>. Mỗi lớp (chữ, hình, chi tiết nhỏ) hiện một khung; bấm khung hoặc dòng bên dưới để chọn.</p>
+        <div class="row rd-view" id="rd-view" hidden>
+          <button data-view="source" class="on">Bản gốc</button>
+          <button data-view="edit">Bản sửa</button>
+        </div>
         <div id="rd-stage" class="rd-stage"></div>
+        <div id="rd-analysis" class="rd-analysis" hidden></div>
         <div id="rd-palette" class="rd-palette"></div>
         <div id="rd-layers" class="rd-layers"></div>
       </div>
@@ -177,9 +182,24 @@
         <label class="block">Từ job 2D <select id="rd-job"></select></label>
         <label class="block">hoặc file PNG/JPG <input id="rd-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
         <label class="check"><input type="checkbox" id="rd-sam"> Tách sâu bằng SAM 3 (nhân vật, con vật, logo…; chậm hơn 20–60 giây)</label>
-        <button id="rd-analyze" class="accent">Phân tích</button>
+        <div class="actions">
+          <button id="rd-analyze" class="accent">Phân tích</button>
+          <button id="rd-ai" title="Dùng Claude Code đã đăng nhập trên Mac, không tốn tiền API">Phân tích bằng Claude (0đ)</button>
+        </div>
         <h3>2. Muốn đổi gì</h3>
-        <p class="muted">Ở mỗi lớp chọn <b>Giữ</b>, <b>Sửa</b> (ghi cần sửa thế nào) hoặc <b>Bỏ</b>. Lớp nào giữ thì brief yêu cầu giữ nguyên từng chi tiết.</p>
+        <p class="muted">Ở mỗi lớp chọn <b>Giữ</b>, <b>Sửa</b> (ghi cần sửa thế nào) hoặc <b>Bỏ</b>. Lớp nào giữ thì brief yêu cầu giữ nguyên từng chi tiết. Mở <b>Sửa trên máy</b> ở mỗi lớp để đổi chữ, màu, vị trí, cỡ, hiệu ứng ngay mà không cần AI.</p>
+        <div id="rd-concepts"></div>
+        <h3>3. Sửa trên máy (0đ)</h3>
+        <p class="muted">Đổi màu cả thiết kế: bấm ô màu để chọn màu mới.</p>
+        <div id="rd-remap" class="rd-remap"></div>
+        <button id="rd-apply" class="accent">Áp dụng sửa</button>
+        <div id="rd-result" hidden></div>
+        <h3>4. Biến thể bộ màu</h3>
+        <p class="muted">Cùng các chỉnh sửa ở trên, mỗi biến thể một bộ màu (tối đa 4) để so sánh.</p>
+        <div id="rd-presets" class="rd-presets"></div>
+        <button id="rd-variants">Tạo biến thể</button>
+        <div id="rd-vars" class="rd-vars"></div>
+        <h3>5. Xuất brief cho AI</h3>
         <label class="block">Mục tiêu chung <textarea id="rd-goal" rows="3" maxlength="600" placeholder="Ví dụ: bản Halloween, giữ bố cục, đổi con mèo thành bí ngô"></textarea></label>
         <div id="rd-skills"></div>
         <button id="rd-prompt" class="accent">Xuất brief</button>

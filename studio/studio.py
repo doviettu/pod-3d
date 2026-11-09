@@ -741,7 +741,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(200, v2.redesign_skills())
         elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}", path):
             self.send_json(200, v2.redesign_get(path.split("/")[4]))
-        elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}/(?:source|layer-\d{1,3})[.]png", path):
+        elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}/(?:source|layer-\d{1,3}|edit-\d{1,4}|var-\d{1,4}-\d)[.]png", path):
             parts = path.split("/")
             self.send_file(v2.redesign.file(parts[4], parts[5]))
         elif re.fullmatch(r"/api/v2/mockups/[a-z0-9-]{3,80}/(?:blank|preview)[.]jpg", path):
@@ -899,6 +899,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(201, self.server.v2.redesign_analyze(data))
             elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}/prompt", self.path):
                 self.send_json(200, self.server.v2.redesign_prompt(self.path.split("/")[4], data))
+            elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}/(?:analyze-ai|edit|variants)", self.path):
+                rid, action = self.path.split("/")[4:6]
+                v2 = self.server.v2
+                if action == "analyze-ai":
+                    self.send_json(200, v2.redesign_ai(rid))
+                elif action == "edit":
+                    self.send_json(200, v2.redesign_edit(rid, data))
+                else:
+                    self.send_json(200, v2.redesign_variants(rid, data))
             elif re.fullmatch(r"/api/v2/mockups/[a-z0-9-]{3,80}", self.path):
                 self.send_json(200, self.server.v2.mockup_update(self.path.split("/")[4], data))
             elif re.fullmatch(r"/api/v2/mockups/[a-z0-9-]{3,80}/preview", self.path):
