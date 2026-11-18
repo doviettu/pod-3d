@@ -4,7 +4,12 @@
 # sau khi đã tự kiểm Origin của trình duyệt.
 pod.vitumonitor.duckdns.org {
     encode gzip
-    request_body {
+    @worker path /api/worker/*
+    request_body @worker {
+        max_size 400MB
+    }
+    @notworker not path /api/worker/*
+    request_body @notworker {
         max_size 50MB
     }
     header {

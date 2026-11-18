@@ -38,3 +38,11 @@ cd /srv/pod-studio/pod-3d && git pull && docker restart pod-studio
 ```
 
 An toàn: container đặt `POD_ONLINE_ONLY=1`, nên mọi truy cập đều phải đăng nhập và tab Hỏi Claude chỉ có chế độ đọc / vẽ SVG. Cổng 8765 chỉ mở trên 127.0.0.1 của máy chủ. Giới hạn 3 nhân, 12 GB RAM.
+
+## Mac nhận việc AI nặng (chạy lai)
+
+Oracle chậm hơn Mac khoảng 20–28 lần ở Real-ESRGAN/LaMa/SAM 3, nên container đặt `POD_OFFLOAD=1`: khi Mac đang nhận việc, các bước này được gửi sang Mac; Mac tắt thì Oracle tự chạy (chậm). Mac chỉ gọi ra ngoài (long-poll HTTPS), không mở cổng nào.
+
+1. Trên Oracle: `docker exec pod-studio python studio/worker_api.py token` (tạo `studio/runtime/worker/token`).
+2. Trên Mac, tạo `~/.config/pod-studio/worker.json` (chmod 600): `{"url": "https://pod.vitumonitor.duckdns.org", "token": "<nội dung file token>"}`.
+3. Trên Mac: `.venv/bin/python studio/service.py worker` (launchd `com.podstudio.worker`, log ở `studio/runtime/logs/worker.log`).

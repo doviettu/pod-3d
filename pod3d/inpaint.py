@@ -36,6 +36,10 @@ STEP = 40  # progressive fill: px (at WORK_SIDE scale) added around the known ar
 def inpaint(img, mask):
     """Fill in rings from the known area outwards. LaMa copies texture well into a narrow gap
     but smears across a wide one, so a wide hole is closed a ring at a time."""
+    from . import offload
+    remote = offload.run('inpaint', {'img': img, 'mask': mask.astype(bool)})
+    if remote is not None:
+        return remote['out']
     h, w = img.shape[:2]
     s = min(1.0, WORK_SIDE / max(h, w))
     small = cv2.resize(img, (round(w * s), round(h * s)), interpolation=cv2.INTER_AREA) if s < 1 else img.copy()

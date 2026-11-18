@@ -46,6 +46,11 @@ def available(name=DEFAULT_MODEL):
 
 def upscale(img, factor, model_name=DEFAULT_MODEL, log=print):
     """Upscale BGR img by `factor` (any value >1). Model passes are x4, the rest is Lanczos."""
+    from . import offload
+    remote = offload.run('upscale', {'img': img}, {'factor': float(factor), 'model': model_name})
+    if remote is not None:
+        log("    upscaled on the worker (Mac)")
+        return remote['out']
     model = _load(model_name)
     out = img
     if model is not None and factor > 1.5:

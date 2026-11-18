@@ -38,6 +38,7 @@ from product_templates import ProductTemplates
 from template_detection import detect_template
 from market_library import load_market_library
 from v2 import StudioV2
+import worker_api
 from claude_chat import ClaudeChat, FILE_TYPES as CLAUDE_FILE_TYPES, INLINE as CLAUDE_INLINE
 
 HERE = Path(__file__).resolve().parent
@@ -645,6 +646,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_bytes(status, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")
 
     def do_GET(self):
+        if worker_api.handle(self, getattr(self.server, "broker", None)):
+            return
         if not self.headers_ok():
             self.send_json(403, {"error": "Chỉ nhận yêu cầu từ giao diện local."})
             return
@@ -830,6 +833,8 @@ class Handler(BaseHTTPRequestHandler):
             events.close()
 
     def do_POST(self):
+        if worker_api.handle(self, getattr(self.server, "broker", None)):
+            return
         if not self.headers_ok():
             self.send_json(403, {"error": "Chỉ nhận yêu cầu từ giao diện local."})
             return
@@ -975,6 +980,11 @@ def main():
     server.v2 = StudioV2(engine, args.jobs_dir.parent)
     server.online_auth = OnlineAuth(HERE / 'runtime/online/access.json')
     server.claude = ClaudeChat()
+    from pod3d import offload
+    server.broker = offload.BROKER
+    if offload.enabled():
+        worker_api.create_token()
+        print("Hàng đợi AI cho Mac: bật (studio/runtime/worker/token).", flush=True)
     print(f"POD Studio: http://127.0.0.1:{server.server_port}", flush=True)
     print("Chế độ local mặc định. OpenAI chỉ phát sinh phí khi chọn và bắt đầu công việc.", flush=True)
     try:

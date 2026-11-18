@@ -24,6 +24,7 @@ services:
       - ${POD_DATA:-/srv/pod-studio}/secrets/claude.env   # CLAUDE_CODE_OAUTH_TOKEN=..., HF_TOKEN=...
     environment:
       OMP_NUM_THREADS: "3"
+      POD_OFFLOAD: "1"                                # việc AI nặng gửi sang Mac khi Mac đang nhận việc
       TZ: Asia/Ho_Chi_Minh
     cpus: 3
     mem_limit: 12g
