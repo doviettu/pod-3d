@@ -1,7 +1,7 @@
 """Print-file preflight: check finished files against a print supplier's profile before sending.
 
 Profiles live in suppliers.json (edit numbers to match the supplier's real guide). Checks:
-format, file size, pixel size, DPI, transparency (none allowed for AOP), semi-transparent edge
+format, file size, pixel size, DPI, embedded colour profile (sRGB), transparency (none allowed for AOP), semi-transparent edge
 pixels (print as a faint halo on DTG/DTF), lines thinner than the minimum, tiny specks, and
 optionally colors that fall outside CMYK when ~/.config/pod-studio/cmyk.icc exists.
 """
@@ -11,6 +11,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 from PIL import Image, ImageCms
+
+import color_profile
 
 HERE = Path(__file__).resolve().parent
 PROFILES = HERE / 'suppliers.json'
@@ -64,6 +66,7 @@ def check_file(path, profile, expected_size=None):
     with Image.open(path) as image:
         fmt, size = image.format, image.size
         dpi = image.info.get('dpi')
+        icc = image.info.get('icc_profile')
         image.load()
         rgba = np.asarray(image.convert('RGBA'))
     stats.update(format=fmt, size=list(size))
@@ -83,6 +86,13 @@ def check_file(path, profile, expected_size=None):
     elif dpi_value < profile.get('good_dpi', profile.get('min_dpi', 300)):
         add('warn', f'{dpi_value} DPI: nhà in nhận nhưng nên đạt {profile["good_dpi"]} DPI.')
     work_dpi = dpi_value or profile.get('min_dpi', 300)
+    space = color_profile.describe(icc)
+    stats['icc'] = space
+    if space is None:
+        add('warn', 'File không gắn hồ sơ màu (ICC). Nhà in thường hiểu là sRGB, nhưng Photoshop/RIP có thể '
+                    'hiểu khác và lệch màu. File xuất từ Studio bây giờ tự gắn sRGB.')
+    elif 'srgb' not in space.lower().replace(' ', ''):
+        add('warn', f'Hồ sơ màu là "{space}", không phải sRGB như nhà in yêu cầu: màu có thể bị đổi khi in.')
 
     alpha = rgba[..., 3]
     ink = alpha >= 128

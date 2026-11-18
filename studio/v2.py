@@ -21,6 +21,7 @@ from PIL import Image
 
 import art2d
 import chroma_key
+import color_profile
 import gdrive
 import listing
 import mockups
@@ -63,7 +64,7 @@ def key_remove(data):
         x, y, w, h = box
         out = out[y:y + h, x:x + w]
     stream = io.BytesIO()
-    Image.fromarray(out).save(stream, 'PNG', dpi=(300, 300))
+    Image.fromarray(out).save(stream, 'PNG', dpi=(300, 300), icc_profile=color_profile.srgb())
     detected = info['detected']
     return {'png_base64': base64.b64encode(stream.getvalue()).decode('ascii'),
             'key_hex': info['key_hex'], 'size': [int(out.shape[1]), int(out.shape[0])], 'bbox': list(box),
@@ -87,7 +88,7 @@ def pattern_tile(data):
     known = rgba[..., 3] >= 128
     tile, info = tiles.extract(bgr, known, edge=edge)
     png, jpg = io.BytesIO(), io.BytesIO()
-    Image.fromarray(tile[..., ::-1]).save(png, 'PNG', dpi=(300, 300))
+    Image.fromarray(tile[..., ::-1]).save(png, 'PNG', dpi=(300, 300), icc_profile=color_profile.srgb())
     Image.fromarray(tiles.preview(tile, kind=info['kind'])[..., ::-1]).save(jpg, 'JPEG', quality=88)
     return {'png_base64': base64.b64encode(png.getvalue()).decode('ascii'),
             'preview_base64': base64.b64encode(jpg.getvalue()).decode('ascii'), **info}
