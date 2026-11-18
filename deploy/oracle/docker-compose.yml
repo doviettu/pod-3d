@@ -13,7 +13,8 @@ services:
     container_name: pod-studio
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8765:8765"
+      - "127.0.0.1:8765:8765"                        # cho SSH tunnel / đo thử trên máy chủ
+    networks: [default, gate]                        # Caddy vitu-gate gọi http://pod-studio:8765
     volumes:
       - ../..:/app                                   # bản git clone (code + khuôn + runtime + models)
       - ${POD_DATA:-/srv/pod-studio}/config:/home/pod/.config/pod-studio   # Google, mail, OpenAI (chmod 600)
@@ -29,3 +30,8 @@ services:
     logging:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
+
+networks:
+  gate:
+    external: true
+    name: ${POD_GATE_NETWORK:-vitu-monitor_default}
