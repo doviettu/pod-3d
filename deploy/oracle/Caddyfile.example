@@ -1,0 +1,28 @@
+# Khối thêm vào Caddy (đã có hoặc mới) cho tên con của DuckDNS.
+# Studio kiểm tra Host/Origin là 127.0.0.1:8765, nên proxy phải đổi hai header này
+# sau khi đã tự kiểm Origin của trình duyệt.
+pod.vitumonitor.duckdns.org {
+    encode gzip
+    request_body {
+        max_size 50MB
+    }
+    header {
+        X-Robots-Tag "noindex, nofollow, noarchive"
+        Strict-Transport-Security "max-age=31536000"
+        -Server
+    }
+    @foreign {
+        header Origin *
+        not header Origin https://pod.vitumonitor.duckdns.org
+    }
+    respond @foreign "Invalid origin" 403
+    reverse_proxy 127.0.0.1:8765 {
+        header_up Host 127.0.0.1:8765
+        header_up Origin http://127.0.0.1:8765
+        header_up X-POD-Online 1
+        transport http {
+            response_header_timeout 300s
+        }
+        flush_interval -1
+    }
+}

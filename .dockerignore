@@ -1,0 +1,9 @@
+.git
+.venv
+models
+samples
+studio/runtime
+studio/node_modules
+studio/.vendor
+studio/repos
+**/__pycache__

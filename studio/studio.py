@@ -955,6 +955,8 @@ def restart_soon(server):
 def main():
     parser = argparse.ArgumentParser(description="POD Studio — giao diện local trên Mac")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--host", default=os.environ.get("POD_HOST", "127.0.0.1"),
+                        help="địa chỉ lắng nghe; 0.0.0.0 chỉ dùng trong container (POD_ONLINE_ONLY=1)")
     parser.add_argument("--engine-root", type=Path, default=DEFAULT_ENGINE)
     parser.add_argument("--jobs-dir", type=Path, default=HERE / "runtime" / "jobs")
     parser.add_argument("--config", type=Path)
@@ -966,7 +968,9 @@ def main():
         print(json.dumps(engine.status(), ensure_ascii=False, indent=2))
         engine.executor.shutdown()
         return
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    if args.host != "127.0.0.1" and os.environ.get("POD_ONLINE_ONLY") != "1":
+        raise SystemExit("Chỉ mở ra ngoài 127.0.0.1 khi đặt POD_ONLINE_ONLY=1 (bắt buộc đăng nhập).")
+    server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.engine = engine
     server.v2 = StudioV2(engine, args.jobs_dir.parent)
     server.online_auth = OnlineAuth(HERE / 'runtime/online/access.json')
