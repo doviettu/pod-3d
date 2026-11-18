@@ -1,4 +1,5 @@
 """Image read/write helpers that handle large files and DPI."""
+from functools import lru_cache
 from pathlib import Path
 
 import cv2
@@ -6,6 +7,13 @@ import numpy as np
 from PIL import Image
 
 Image.MAX_IMAGE_PIXELS = None
+
+
+@lru_cache(maxsize=1)
+def srgb_icc():
+    """sRGB profile embedded in print files so print shops and Photoshop never guess the colour space."""
+    from PIL import ImageCms
+    return ImageCms.ImageCmsProfile(ImageCms.createProfile("sRGB")).tobytes()
 
 
 def read(path) -> np.ndarray:
@@ -24,6 +32,6 @@ def write(path, img: np.ndarray, dpi=300, quality=95):
     path.parent.mkdir(parents=True, exist_ok=True)
     im = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     if path.suffix.lower() in (".jpg", ".jpeg"):
-        im.save(path, quality=quality, subsampling=0, dpi=(dpi, dpi))
+        im.save(path, quality=quality, subsampling=0, dpi=(dpi, dpi), icc_profile=srgb_icc())
     else:
-        im.save(path, dpi=(dpi, dpi))
+        im.save(path, dpi=(dpi, dpi), icc_profile=srgb_icc())

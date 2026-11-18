@@ -12,6 +12,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import color_profile  # noqa: E402
 import listing  # noqa: E402
 import preflight  # noqa: E402
 from test_v2 import FakeEngine, jpeg, shirt  # noqa: E402
@@ -19,8 +20,9 @@ from test_gdrive import FakeGoogle  # noqa: E402
 from v2 import StudioV2  # noqa: E402
 
 
-def png(path, rgba, dpi=300):
-    Image.fromarray(rgba).save(path, dpi=(dpi, dpi))
+def png(path, rgba, dpi=300, icc=True):
+    extra = {'icc_profile': color_profile.srgb()} if icc else {}
+    Image.fromarray(rgba).save(path, dpi=(dpi, dpi), **extra)
     return path
 
 
@@ -43,6 +45,13 @@ class PreflightTests(unittest.TestCase):
         report = preflight.run([('front', png(self.dir / 'f.png', clean_art()), None)], 'dtg')
         self.assertEqual(report['status'], 'ok', report)
         self.assertEqual(report['files'][0]['stats']['dpi'], 300)
+
+    def test_colour_profile(self):
+        result = preflight.check_file(png(self.dir / 'p.png', clean_art(), icc=False), self.profiles['dtg'])
+        self.assertEqual(result['status'], 'warn')
+        self.assertIn('ICC', result['items'][0]['text'])
+        result = preflight.check_file(png(self.dir / 'q.png', clean_art()), self.profiles['dtg'])
+        self.assertEqual(result['stats']['icc'], 'sRGB built-in')
 
     def test_wrong_size_low_dpi_and_missing_dpi(self):
         small = png(self.dir / 's.png', clean_art((1500, 1800)), dpi=72)

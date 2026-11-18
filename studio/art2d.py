@@ -12,6 +12,8 @@ import cv2
 import numpy as np
 from PIL import Image
 
+import color_profile
+
 CANVAS = (4500, 5400)
 DPI = 300
 WORK_MAX = 2048          # longest side used for detection
@@ -381,7 +383,8 @@ def render_side(rgb, box, fabric, *, background='auto', log=print):
 
 
 def save_png(canvas, path):
-    Image.fromarray(canvas, 'RGBA').save(path, dpi=(DPI, DPI), optimize=False)
+    Image.fromarray(canvas, 'RGBA').save(path, dpi=(DPI, DPI), optimize=False,
+                                              icc_profile=color_profile.srgb())
 
 
 def save_preview(canvas, path, size=900):

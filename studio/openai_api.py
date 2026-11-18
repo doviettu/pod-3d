@@ -1,6 +1,7 @@
 """Single-request OpenAI image edits; credentials stay on the local server."""
 import base64
 import hashlib
+import color_profile
 import design_spec as design
 import http.client
 import io
@@ -313,4 +314,4 @@ def place_artwork(source, destination, size, dpi, upscale=None):
         restored = upscale(np.asarray(output)[:, :, ::-1].copy(), size[0] / output.width)
         output = Image.fromarray(restored[:, :, ::-1])
     output = output.resize(tuple(size), Image.Resampling.LANCZOS)
-    _atomic_write(Path(destination), lambda stream: output.save(stream, 'PNG', dpi=(dpi, dpi)))
+    _atomic_write(Path(destination), lambda stream: output.save(stream, 'PNG', dpi=(dpi, dpi), icc_profile=color_profile.srgb()))

@@ -1,0 +1,161 @@
+{
+  "label": "M\u1ed1c 18/11/2026",
+  "results": {
+    "sweater_streetfighter": {
+      "Front": {
+        "seen_fraction": 0.497,
+        "ssim": 0.7937,
+        "ssim_seen": 0.9493,
+        "ssim_guessed": 0.6399,
+        "delta_e": 12.58,
+        "delta_e_seen": 2.8657,
+        "delta_e_guessed": 22.183,
+        "de00": 8.03,
+        "de00_seen": 1.4558,
+        "de00_guessed": 14.5349,
+        "de00_p95": 57.64,
+        "de00_p95_seen": 5.88,
+        "seconds": 6.2
+      },
+      "Back": {
+        "seen_fraction": 0.394,
+        "ssim": 0.7885,
+        "ssim_seen": 0.9209,
+        "ssim_guessed": 0.7023,
+        "delta_e": 12.02,
+        "delta_e_seen": 3.6409,
+        "delta_e_guessed": 17.4687,
+        "de00": 7.46,
+        "de00_seen": 1.6441,
+        "de00_guessed": 11.2409,
+        "de00_p95": 55.16,
+        "de00_p95_seen": 7.29,
+        "seconds": 6.1
+      },
+      "Sleeve": {
+        "seen_fraction": 0.147,
+        "ssim": 0.4222,
+        "ssim_seen": 0.388,
+        "ssim_guessed": 0.4282,
+        "delta_e": 32.36,
+        "delta_e_seen": 35.6863,
+        "delta_e_guessed": 31.7909,
+        "de00": 19.91,
+        "de00_seen": 21.9359,
+        "de00_guessed": 19.5592,
+        "de00_p95": 74.36,
+        "de00_p95_seen": 74.76,
+        "seconds": 3.8
+      }
+    },
+    "sweater_homealone": {
+      "Front": {
+        "seen_fraction": 0.497,
+        "ssim": 0.8189,
+        "ssim_seen": 0.8762,
+        "ssim_guessed": 0.7623,
+        "delta_e": 10.71,
+        "delta_e_seen": 6.2164,
+        "delta_e_guessed": 15.1494,
+        "de00": 6.57,
+        "de00_seen": 3.2997,
+        "de00_guessed": 9.8109,
+        "de00_p95": 40.71,
+        "de00_p95_seen": 8.33,
+        "seconds": 6.5
+      },
+      "Back": {
+        "seen_fraction": 0.394,
+        "ssim": 0.76,
+        "ssim_seen": 0.8026,
+        "ssim_guessed": 0.7323,
+        "delta_e": 11.13,
+        "delta_e_seen": 7.1304,
+        "delta_e_guessed": 13.7337,
+        "de00": 6.7,
+        "de00_seen": 3.4265,
+        "de00_guessed": 8.8326,
+        "de00_p95": 42.95,
+        "de00_p95_seen": 10.43,
+        "seconds": 6.3
+      },
+      "Sleeve": {
+        "seen_fraction": 0.147,
+        "ssim": 0.5868,
+        "ssim_seen": 0.5733,
+        "ssim_guessed": 0.5892,
+        "delta_e": 18.37,
+        "delta_e_seen": 20.076,
+        "delta_e_guessed": 18.0797,
+        "de00": 11.2,
+        "de00_seen": 12.1313,
+        "de00_guessed": 11.0406,
+        "de00_p95": 54.36,
+        "de00_p95_seen": 55.58,
+        "seconds": 3.6
+      }
+    },
+    "hoodie_jack": {
+      "Front": {
+        "seen_fraction": 0.414,
+        "ssim": 0.7425,
+        "ssim_seen": 0.9477,
+        "ssim_guessed": 0.5975,
+        "delta_e": 22.07,
+        "delta_e_seen": 3.5349,
+        "delta_e_guessed": 35.1587,
+        "de00": 16.13,
+        "de00_seen": 2.1641,
+        "de00_guessed": 26.0003,
+        "de00_p95": 57.1,
+        "de00_p95_seen": 5.78,
+        "seconds": 6.8
+      },
+      "Back": {
+        "seen_fraction": 0.362,
+        "ssim": 0.665,
+        "ssim_seen": 0.7635,
+        "ssim_guessed": 0.609,
+        "delta_e": 21.94,
+        "delta_e_seen": 4.7527,
+        "delta_e_guessed": 31.7091,
+        "de00": 15.83,
+        "de00_seen": 2.7091,
+        "de00_guessed": 23.2851,
+        "de00_p95": 55.33,
+        "de00_p95_seen": 8.61,
+        "seconds": 6.1
+      },
+      "Left": {
+        "seen_fraction": 0.113,
+        "ssim": 0.3478,
+        "ssim_seen": 0.8873,
+        "ssim_guessed": 0.279,
+        "delta_e": 46.75,
+        "delta_e_seen": 3.3381,
+        "delta_e_guessed": 52.2926,
+        "de00": 40.65,
+        "de00_seen": 1.8781,
+        "de00_guessed": 45.5916,
+        "de00_p95": 99.96,
+        "de00_p95_seen": 6.23,
+        "seconds": 3.2
+      },
+      "Right": {
+        "seen_fraction": 0.0,
+        "ssim": 0.3943,
+        "ssim_seen": 0.8624,
+        "ssim_guessed": 0.3942,
+        "delta_e": 55.18,
+        "delta_e_seen": 39.2157,
+        "delta_e_guessed": 55.1825,
+        "de00": 48.2,
+        "de00_seen": 27.2167,
+        "de00_guessed": 48.2058,
+        "de00_p95": 100.0,
+        "de00_p95_seen": 27.22,
+        "seconds": 5.7
+      }
+    }
+  }
+}

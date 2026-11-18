@@ -15,6 +15,8 @@ import uuid
 
 from PIL import Image, ImageDraw, ImageFont
 
+import color_profile
+
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / '.vendor'))
 ASSET_ID = re.compile(r'[a-f0-9]{64}')
@@ -244,7 +246,7 @@ class Review:
         (folder / 'spec.json').write_text(json.dumps(spec, ensure_ascii=False, indent=2))
         dpi = self.engine.templates.load(self.engine.get_job(job_id)['template']).dpi
         png = folder / (panel + ('-approved.png' if approved else '-draft.png'))
-        composite.convert('RGB').save(png, dpi=(dpi, dpi))
+        composite.convert('RGB').save(png, dpi=(dpi, dpi), icc_profile=color_profile.srgb())
         composite.thumbnail((900, 900))
         composite.convert('RGB').save(folder / 'preview.jpg', quality=90)
         self.engine.add_artifact(job_id, folder / 'preview.jpg', 'image', panel + ' — xem trước hậu kỳ.jpg')

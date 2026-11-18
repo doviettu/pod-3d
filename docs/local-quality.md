@@ -120,3 +120,20 @@ Bật cho tay áo (`strip`/`tube`), tắt cho thân vì hình in màu trắng ch
 1. Tay áo: vùng "thấy" lệch nhiều (ΔE 20–36) → kiểm tra lại đường cong `curve` của khuôn sweater trước khi thử kỹ thuật lấp.
 2. Vùng đoán của thân: lát theo chu kỳ ngang từng dải (F1), dựng lại lưới pixel (D1).
 3. Thêm ảnh 2D có file gốc vào bộ test để đo pipeline 2D.
+
+## Đợt 18/11/2026: thử các kỹ thuật CPU trên máy Oracle
+
+`scripts/golden.py` giờ đo thêm **ΔE00** (CIEDE2000, sát mắt người hơn ΔE cũ), **ΔE00 p95** (5% pixel tệ nhất, nơi lỗi lộ ra) và có **cổng chặn**: `--baseline scripts/golden-baseline.json` trả mã lỗi 1 nếu mảnh nào tệ hơn mốc (SSIM giảm > 0,005, ΔE00 tăng > 0,5, p95 tăng > 1,5). Mốc lưu ở `scripts/golden-baseline.json`.
+
+Kết quả trung bình trên 10 mảnh của 3 bộ mẫu (mốc → thử). Không kỹ thuật nào qua cổng, nên **không bật**:
+
+| Kỹ thuật (từ báo cáo nghiên cứu) | SSIM vùng thấy | ΔE00 vùng thấy | ΔE00 p95 vùng thấy | Kết luận |
+| --- | --- | --- | --- | --- |
+| Gom màu bằng CIEDE2000 trên Lab float (ngưỡng 4–22) | 0,797 → 0,781–0,784 | 7,79 → 7,69–7,97 | 21,0 → 20,7–21,8 | SSIM Street Fighter Front 0,794 → 0,72. Giữ cách cũ |
+| Khử bóng vải theo bảng màu (Retinex, sigma 2–10% cạnh ảnh) | 0,797 → 0,782–0,787 | 7,79 → 9,6–9,8 | 21,0 → 27–29 | Tệ hơn: khuôn đã có ma trận màu bù sáng, chia thêm làm lệch |
+| Nội suy Lanczos khi trải phẳng | 0,797 → 0,798 | 7,79 → 7,78 | 21,0 → 20,9 | Không đáng kể |
+| Làm mờ chống răng cưa trước khi trải phẳng | 0,797 → 0,68–0,75 | tăng | tăng | Tệ hơn. Mockup 1500 px được **phóng to** ~2 lần khi trải, không có răng cưa để chống |
+
+Đọc ra: vùng nhìn thấy trên thân đã tốt (ΔE00 1,5–3,4). Lỗi nằm ở **vùng phải đoán** (ΔE00 9–48) và **tay áo** (vùng thấy ΔE00 12–27 trên sweater). Đợt sau nên nhắm vào hai chỗ đó, và vào ảnh mockup độ phân giải cao hơn (mockup 1500 px là giới hạn chi tiết).
+
+Đã bật: mọi file in xuất ra (3D, 2D, hậu kỳ, ảnh AI) gắn hồ sơ màu **sRGB**; preflight cảnh báo file thiếu hồ sơ hoặc không phải sRGB.
