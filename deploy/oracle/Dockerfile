@@ -20,8 +20,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt studio/review-requirements.txt /tmp/req/
 RUN python -m venv /opt/venv \
     && /opt/venv/bin/pip install --upgrade pip \
+    && /opt/venv/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu \
     && /opt/venv/bin/pip install -r /tmp/req/requirements.txt \
-    && /opt/venv/bin/pip install "transformers>=5" torchvision huggingface_hub accelerate \
+    && /opt/venv/bin/pip install "transformers>=5" huggingface_hub accelerate \
     && /opt/venv/bin/pip install --target /opt/vendor -r /tmp/req/review-requirements.txt
 
 # SAM 2 chính thức (commit giống trên Mac), chỉ dùng mã nguồn; model tải vào runtime/models.
