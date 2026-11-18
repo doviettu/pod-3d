@@ -1,7 +1,8 @@
 """Redesign, step 1: take a flat design apart into layers and write the brief for changing it.
 
 The design is split without AI: text lines from Tesseract (when installed), graphic parts from
-the ink mask (alpha, or distance from the background colour on an opaque image) split into
+the ink mask (alpha, or distance from the background colour on an opaque image; a flat green/
+blue/pink screen is keyed out first by chroma_key) split into
 connected pieces, and optionally named objects from SAM 3. Every layer is saved as a cut-out
 PNG. The user marks each layer keep / change / remove, and build_prompt writes one structured
 brief ("change only these, keep everything else") plus the chosen Skill files, to paste into
@@ -22,6 +23,8 @@ import threading
 import cv2
 import numpy as np
 from PIL import Image
+
+import chroma_key
 
 HERE = Path(__file__).resolve().parent
 SKILLS = HERE / 'skills'
@@ -277,6 +280,11 @@ class RedesignStore:
             s = MAX_EDGE / max(h, w)
             rgba = np.asarray(Image.fromarray(rgba).resize((round(w * s), round(h * s)), Image.Resampling.LANCZOS))
             h, w = rgba.shape[:2]
+        # Art on a flat green / blue / pink screen (what image models return when asked for a
+        # transparent print): key it first, so layers and the brief use a real transparent canvas.
+        keyed = chroma_key.is_keyed(rgba)
+        if keyed:
+            rgba, _ = chroma_key.remove_key(rgba, preset='safe', key=keyed['rgb'])
         text = self.ocr(np.ascontiguousarray(rgba[..., :3])) if self.ocr else None
         layers, info = split(rgba, text, segment)
         with self.lock:
@@ -294,7 +302,7 @@ class RedesignStore:
             Image.fromarray(cutout(rgba, layer['mask'], layer['bbox'])).save(folder / f'layer-{i}.png')
             out.append({k: v for k, v in layer.items() if k != 'mask'} | {'id': lid, 'file': f'layer-{i}.png'})
         scene = {'id': rid, 'name': str(name)[:120], 'size': [w, h], 'created': datetime.now().isoformat(timespec='seconds'),
-                 'ocr': text is not None, 'sam3': segment is not None, **info, 'layers': out}
+                 'ocr': text is not None, 'sam3': segment is not None, 'keyed': keyed, **info, 'layers': out}
         (folder / 'scene.json').write_text(json.dumps(scene, ensure_ascii=False, indent=1))
         return self.get(rid)
 

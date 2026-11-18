@@ -1463,3 +1463,107 @@ $('#rd-ask').addEventListener('click', async () => {
     + rd.out.markdown).slice(0, 8000);
   $('.tabs button[data-tab="claude"]').click();
 });
+
+// ---------- key removal ----------
+// Flat key background (AI art on #00FF00, etc.) -> transparent PNG, done on the Mac by chroma_key.py.
+const kr = { art: null, name: 'design', png: null, url: null, src: null };
+
+$('#kr-file').addEventListener('change', async () => {
+  const file = $('#kr-file').files[0];
+  kr.art = file ? await fileToBase64(file) : null;
+  kr.name = file ? file.name.replace(/\.[^.]+$/, '') : 'design';
+  if (kr.src) URL.revokeObjectURL(kr.src);
+  kr.src = file ? URL.createObjectURL(file) : null;
+});
+
+$('#kr-run').addEventListener('click', async event => {
+  if (!kr.art) { note('kr', 'Hãy chọn file ảnh trước.', true); return; }
+  event.target.disabled = true;
+  note('kr', $('#kr-matting').checked ? 'Đang xoá nền (có matting, 5–15 giây)…' : 'Đang xoá nền…');
+  try {
+    const out = await api('/api/v2/key-remove', { art_base64: kr.art, preset: $('#kr-preset').value,
+      key: $('#kr-key').value, trim: $('#kr-trim').checked, matting: $('#kr-matting').checked });
+    kr.png = out.png_base64;
+    if (kr.url) URL.revokeObjectURL(kr.url);
+    const bytes = Uint8Array.from(atob(out.png_base64), c => c.charCodeAt(0));
+    kr.url = URL.createObjectURL(new Blob([bytes], { type: 'image/png' }));
+    $('#kr-before').src = kr.src;
+    $('#kr-after').src = kr.url;
+    $('#kr-before').parentElement.hidden = $('#kr-trim').checked;   // trimmed output no longer lines up with the source
+    $('#kr-stage').hidden = false;
+    $('#kr-download').href = kr.url;
+    $('#kr-download').download = `${kr.name}-transparent.png`;
+    $('#kr-actions').hidden = false;
+    const pct = v => `${(v * 100).toFixed(1)}%`;
+    $('#kr-stats').textContent = `Nền ${out.key_hex} · ${out.size[0]}×${out.size[1]} px · trong suốt ${pct(out.transparent)} · viền mềm ${pct(out.partial)} · giữ lại ${pct(out.opaque)}`;
+    const low = out.coverage !== null && out.coverage < 0.3;
+    note('kr', low ? `Chỉ ${Math.round(out.coverage * 100)}% mép ảnh khớp màu nền, ảnh này có thể không phải nền key. Hãy chọn màu nền thủ công.` : 'Xong. Kéo trên ảnh để so sánh trước/sau.', low);
+  } catch (error) {
+    note('kr', error.message, true);
+  } finally {
+    event.target.disabled = false;
+  }
+});
+
+$('#kr-to-rd').addEventListener('click', () => {
+  if (!kr.png) return;
+  rd.art = kr.png;
+  $('#rd-job').value = '';
+  $('#rd-file').value = '';
+  note('rd', `Đã lấy ảnh "${kr.name}" đã xoá nền. Bấm Phân tích.`);
+  $('#tab-redesign').scrollIntoView({ behavior: 'smooth' });
+});
+
+{
+  const stage = $('#kr-stage');
+  let dragging = false;
+  const move = x => { const r = stage.getBoundingClientRect(); stage.style.setProperty('--pos', `${Math.max(0, Math.min(100, (x - r.left) / r.width * 100))}%`); };
+  stage.addEventListener('pointerdown', e => { dragging = true; stage.setPointerCapture(e.pointerId); move(e.clientX); });
+  stage.addEventListener('pointermove', e => { if (dragging) move(e.clientX); });
+  stage.addEventListener('pointerup', () => { dragging = false; });
+}
+
+// ---------- pattern tile ----------
+// Flat all-over pattern -> seamless repeat tile (pattern_tile.py), with a 3 x 3 preview to check seams.
+const pt = { art: null, name: 'pattern', urls: [] };
+
+$('#pt-file').addEventListener('change', async () => {
+  const file = $('#pt-file').files[0];
+  pt.art = file ? await fileToBase64(file) : null;
+  pt.name = file ? file.name.replace(/\.[^.]+$/, '') : 'pattern';
+});
+
+function ptBlobUrl(b64, type) {
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  pt.urls.push(url);
+  return url;
+}
+
+$('#pt-run').addEventListener('click', async event => {
+  if (!pt.art) { note('pt', 'Hãy chọn file ảnh hoạ tiết trước.', true); return; }
+  event.target.disabled = true;
+  note('pt', 'Đang tìm ô lặp…');
+  try {
+    const out = await api('/api/v2/pattern-tile', { art_base64: pt.art, edge: Number($('#pt-edge').value) || 2048 });
+    pt.urls.splice(0).forEach(u => URL.revokeObjectURL(u));
+    const tile = ptBlobUrl(out.png_base64, 'image/png');
+    const grid = ptBlobUrl(out.preview_base64, 'image/jpeg');
+    $('#pt-preview').src = grid;
+    $('#pt-preview').hidden = false;
+    $('#pt-download').href = tile;
+    $('#pt-download').download = `${pt.name}-tile.png`;
+    $('#pt-download-preview').href = grid;
+    $('#pt-download-preview').download = `${pt.name}-tile-preview.jpg`;
+    $('#pt-actions').hidden = false;
+    const kind = out.kind === 'grid' ? (out.half_drop ? 'lưới so le (half-drop), ô gồm 2 lần lặp' : 'lưới thẳng')
+      : out.kind === 'band-x' ? 'dải lặp ngang' : 'dải lặp dọc';
+    $('#pt-stats').textContent = `${kind} · một chu kỳ ${out.period_px[0]}×${out.period_px[1]} px trên ảnh gốc · ${out.copies} bản lặp lấy trung vị · tile ${out.size[0]}×${out.size[1]} px · đường nối ${out.seam}`;
+    note('pt', out.seamless ? 'Xong. Ảnh ghép thử bên trái không thấy đường nối là dùng được.'
+      : 'Đã ra tile nhưng đường nối còn rõ (ảnh nguồn méo hoặc có nếp vải). Soi ảnh ghép thử trước khi dùng.', !out.seamless);
+  } catch (error) {
+    note('pt', error.message, true);
+  } finally {
+    event.target.disabled = false;
+  }
+});

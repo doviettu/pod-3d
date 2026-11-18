@@ -160,6 +160,15 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 .mk-stage .quads { pointer-events: none; } .mk-stage .quads polygon, .mk-stage .quads polyline { pointer-events: auto; }
 .rd-stage { position: relative; background: repeating-conic-gradient(#e7e7ea 0% 25%, #fff 0% 50%) 0 0 / 20px 20px; border-radius: 8px; }
 .rd-stage img { display: block; width: 100%; height: auto; }
+.kr-grid { margin-top: 16px; }
+.kr-stage { position: relative; border-radius: 8px; overflow: hidden; touch-action: none; user-select: none; cursor: ew-resize;
+  background: repeating-conic-gradient(#e7e7ea 0% 25%, #fff 0% 50%) 0 0 / 20px 20px; }
+.kr-stage img { display: block; width: 100%; height: auto; }
+.kr-before { position: absolute; inset: 0; clip-path: inset(0 calc(100% - var(--pos, 50%)) 0 0); border-right: 2px solid var(--accent); }
+.kr-before img { width: 100%; height: 100%; object-fit: contain; }
+.kr-tag { position: absolute; top: 8px; font-size: 12px; padding: 1px 8px; border-radius: 6px; background: var(--card); color: var(--text); border: 1px solid var(--line); }
+.kr-tag.l { left: 8px; } .kr-tag.r { right: 8px; }
+.pt-preview { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); }
 .rd-boxes { position: absolute; inset: 0; width: 100%; height: 100%; }
 .rd-box { fill: transparent; stroke: #2563eb; stroke-width: 2; cursor: pointer; vector-effect: non-scaling-stroke; }
 .rd-box.change { stroke: #ea580c; fill: rgba(234, 88, 12, 0.12); }
