@@ -38,6 +38,7 @@ from product_templates import ProductTemplates
 from template_detection import detect_template
 from market_library import load_market_library
 from v2 import StudioV2
+import worker_api
 from claude_chat import ClaudeChat, FILE_TYPES as CLAUDE_FILE_TYPES, INLINE as CLAUDE_INLINE
 
 HERE = Path(__file__).resolve().parent
@@ -213,7 +214,7 @@ class Engine:
             raise ValueError("Khuôn chưa đủ dữ liệu: " + ", ".join(info["missing"]))
         if data.get("gemini"):
             raise ValueError("Ứng dụng đã chuyển sang OpenAI. Hãy tải lại giao diện và chọn OpenAI.")
-        for option in ("use_model", "openai", "use_reference"):
+        for option in ("use_model", "openai", "use_reference", "hq"):
             if not isinstance(data.get(option, False), bool):
                 raise ValueError("Tuỳ chọn xử lý phải là bật hoặc tắt.")
         use_openai = data.get("openai", False)
@@ -274,7 +275,7 @@ class Engine:
             job = {"id": job_id, "status": "queued", "created_at": now(), "updated_at": now(),
                    "template": name, "filename": str(filename)[:200], "openai": use_openai,
                    "provider": "openai" if use_openai else "local",
-                   "use_model": data.get("use_model", True), "panels": panels,
+                   "use_model": data.get("use_model", True), "hq": data.get("hq", False), "panels": panels,
                    "ai_mode": ai_mode if use_openai else None, "auto_panels": auto_panels,
                    "model": config.model if use_openai else None, "image_size": config.image_size if use_openai else None,
                    "quality": config.quality if use_openai else None,
@@ -478,6 +479,11 @@ class Engine:
             temp.unlink(missing_ok=True)
 
     def process(self, job_id, source, config):
+        from pod3d import quality
+        with quality.hq_scope(self.get_job(job_id).get('hq', False)):
+            return self._process(job_id, source, config)
+
+    def _process(self, job_id, source, config):
         try:
             job = self.get_job(job_id)
             self.update(job_id, status="running", stage='local_reference')
@@ -645,6 +651,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_bytes(status, json.dumps(data, ensure_ascii=False).encode(), "application/json; charset=utf-8")
 
     def do_GET(self):
+        if worker_api.handle(self, getattr(self.server, "broker", None)):
+            return
         if not self.headers_ok():
             self.send_json(403, {"error": "Chỉ nhận yêu cầu từ giao diện local."})
             return
@@ -830,6 +838,8 @@ class Handler(BaseHTTPRequestHandler):
             events.close()
 
     def do_POST(self):
+        if worker_api.handle(self, getattr(self.server, "broker", None)):
+            return
         if not self.headers_ok():
             self.send_json(403, {"error": "Chỉ nhận yêu cầu từ giao diện local."})
             return
@@ -839,7 +849,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(415, {"error": "Yêu cầu phải có định dạng JSON."})
             return
         length = self.headers.get("Content-Length", "")
-        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template', '/api/claude/chat') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review|/api/v2/jobs/[a-f0-9]{32}/real-photo|/api/v2/mockups(?:/[a-z0-9-]{3,80}/preview)?|/api/v2/redesign', self.path) else 128 * 1024 if self.path in ('/api/design-plan', '/api/v2/rights-config') else 16 * 1024
+        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template', '/api/claude/chat') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review|/api/v2/jobs/[a-f0-9]{32}/real-photo|/api/v2/mockups(?:/[a-z0-9-]{3,80}/preview)?|/api/v2/redesign|/api/v2/key-remove|/api/v2/pattern-tile', self.path) else 128 * 1024 if self.path in ('/api/design-plan', '/api/v2/rights-config') else 16 * 1024
         if not length.isdigit() or len(length) > 9 or not 0 < int(length) <= limit:
             self.send_json(413, {"error": "Dữ liệu quá lớn hoặc thiếu độ dài."})
             return
@@ -897,6 +907,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(201, self.server.v2.mockup_create(data))
             elif self.path == "/api/v2/redesign":
                 self.send_json(201, self.server.v2.redesign_analyze(data))
+            elif self.path == "/api/v2/key-remove":
+                self.send_json(200, self.server.v2.key_remove(data))
+            elif self.path == "/api/v2/pattern-tile":
+                self.send_json(200, self.server.v2.pattern_tile(data))
             elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}/prompt", self.path):
                 self.send_json(200, self.server.v2.redesign_prompt(self.path.split("/")[4], data))
             elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}/(?:analyze-ai|edit|variants)", self.path):
@@ -955,6 +969,8 @@ def restart_soon(server):
 def main():
     parser = argparse.ArgumentParser(description="POD Studio — giao diện local trên Mac")
     parser.add_argument("--port", type=int, default=8765)
+    parser.add_argument("--host", default=os.environ.get("POD_HOST", "127.0.0.1"),
+                        help="địa chỉ lắng nghe; 0.0.0.0 chỉ dùng trong container (POD_ONLINE_ONLY=1)")
     parser.add_argument("--engine-root", type=Path, default=DEFAULT_ENGINE)
     parser.add_argument("--jobs-dir", type=Path, default=HERE / "runtime" / "jobs")
     parser.add_argument("--config", type=Path)
@@ -966,11 +982,18 @@ def main():
         print(json.dumps(engine.status(), ensure_ascii=False, indent=2))
         engine.executor.shutdown()
         return
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
+    if args.host != "127.0.0.1" and os.environ.get("POD_ONLINE_ONLY") != "1":
+        raise SystemExit("Chỉ mở ra ngoài 127.0.0.1 khi đặt POD_ONLINE_ONLY=1 (bắt buộc đăng nhập).")
+    server = ThreadingHTTPServer((args.host, args.port), Handler)
     server.engine = engine
     server.v2 = StudioV2(engine, args.jobs_dir.parent)
     server.online_auth = OnlineAuth(HERE / 'runtime/online/access.json')
     server.claude = ClaudeChat()
+    from pod3d import offload
+    server.broker = offload.BROKER
+    if offload.enabled():
+        worker_api.create_token()
+        print("Hàng đợi AI cho Mac: bật (studio/runtime/worker/token).", flush=True)
     print(f"POD Studio: http://127.0.0.1:{server.server_port}", flush=True)
     print("Chế độ local mặc định. OpenAI chỉ phát sinh phí khi chọn và bắt đầu công việc.", flush=True)
     try:

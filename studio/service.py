@@ -2,12 +2,15 @@
 
 - com.podstudio.server: the local app (studio.py) on 127.0.0.1:8765.
 - com.podstudio.online: the HTTPS tunnel + login gateway (online.py), optional.
+- com.podstudio.worker: takes heavy AI steps from the Oracle server (worker.py), when
+  ~/.config/pod-studio/worker.json exists.
 Both start when you log in and launchd starts them again within ~30 s if they stop or crash.
 A restarted tunnel gets a new link, which mailer.py emails when mail is set up.
 
     .venv/bin/python studio/service.py install [--no-online]
     .venv/bin/python studio/service.py restart      # after `git pull`
     .venv/bin/python studio/service.py status
+    .venv/bin/python studio/service.py worker       # Mac nhận việc AI nặng từ máy chủ Oracle
     .venv/bin/python studio/service.py uninstall
     .venv/bin/python studio/service.py app          # (re)make ~/Applications/POD Studio.app
 
@@ -26,7 +29,8 @@ REPO = HERE.parent
 PYTHON = REPO / '.venv' / 'bin' / 'python'
 AGENTS = Path.home() / 'Library' / 'LaunchAgents'
 LOGS = HERE / 'runtime' / 'logs'
-SERVICES = {'server': ('com.podstudio.server', 'studio.py'), 'online': ('com.podstudio.online', 'online.py')}
+SERVICES = {'server': ('com.podstudio.server', 'studio.py'), 'online': ('com.podstudio.online', 'online.py'),
+            'worker': ('com.podstudio.worker', 'worker.py')}
 PATH = '/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'
 APP = Path.home() / 'Applications' / 'POD Studio.app'
 URL = 'http://127.0.0.1:8765'
@@ -154,6 +158,10 @@ def main(argv):
     command = argv[1] if len(argv) > 1 else ''
     if command == 'install':
         install(['server'] if '--no-online' in argv else ['server', 'online'])
+    elif command == 'worker':
+        if not (Path.home() / '.config/pod-studio/worker.json').is_file():
+            raise SystemExit('Thiếu ~/.config/pod-studio/worker.json (url + token của máy chủ).')
+        install(['worker'])
     elif command == 'uninstall':
         uninstall()
     elif command == 'restart':

@@ -32,6 +32,31 @@ class Unavailable(RuntimeError):
     """SAM 3 cannot run here; the message says what to do."""
 
 
+def pack_segments(prompts, found):
+    """{prompt: [(mask, score)]} -> arrays for the worker wire format."""
+    arrays = {}
+    for i, prompt in enumerate(prompts):
+        items = found.get(prompt, [])
+        arrays[f'm{i}'] = np.array([m for m, _ in items], dtype=bool).reshape(len(items), *(items[0][0].shape if items else (0, 0)))
+        arrays[f's{i}'] = np.array([s for _, s in items], dtype=np.float32)
+    return arrays
+
+
+def unpack_segments(prompts, arrays):
+    return {prompt: [(m.astype(bool), float(s)) for m, s in zip(arrays[f'm{i}'], arrays[f's{i}'])]
+            for i, prompt in enumerate(prompts)}
+
+
+def remote_segment(rgb, prompts):
+    """SAM 3 on the worker (Mac) when the server offloads; None means run here."""
+    try:
+        from pod3d import offload
+    except ImportError:
+        return None
+    result = offload.run('sam3', {'rgb': np.ascontiguousarray(rgb)}, {'prompts': list(prompts)})
+    return None if result is None else unpack_segments(prompts, result)
+
+
 def sam3_segmenter(device=None, load=None):
     """Returns segment(rgb, prompts) -> {prompt: [(mask, score)]} running SAM 3 locally.
     The model is loaded per call and freed afterwards: detection runs once per new template, and
@@ -44,6 +69,10 @@ def sam3_segmenter(device=None, load=None):
                           'uv pip install --python .venv/bin/python -U "transformers>=5" torchvision huggingface_hub') from exc
 
     def segment(rgb, prompts):
+        if load is None:
+            remote = remote_segment(rgb, prompts)
+            if remote is not None:
+                return remote
         dev = device or ('mps' if torch.backends.mps.is_available() else 'cpu')
         try:
             processor, model = load() if load else (Sam3Processor.from_pretrained(MODEL), Sam3Model.from_pretrained(MODEL))

@@ -1,0 +1,38 @@
+# Chạy: cd /srv/pod-studio/pod-3d/deploy/oracle && docker compose up -d --build
+# Chỉ mở cổng trên 127.0.0.1; ra Internet qua reverse proxy (xem Caddyfile.example).
+name: pod-studio
+services:
+  studio:
+    build:
+      context: ../..
+      dockerfile: deploy/oracle/Dockerfile
+      args:
+        UID: ${POD_UID:-1000}
+        GID: ${POD_GID:-1000}
+    image: pod-studio:latest
+    container_name: pod-studio
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8765:8765"                        # cho SSH tunnel / đo thử trên máy chủ
+    networks: [default, gate]                        # Caddy vitu-gate gọi http://pod-studio:8765
+    volumes:
+      - ../..:/app                                   # bản git clone (code + khuôn + runtime + models)
+      - ${POD_DATA:-/srv/pod-studio}/config:/home/pod/.config/pod-studio   # Google, mail, OpenAI (chmod 600)
+      - ${POD_DATA:-/srv/pod-studio}/hf-cache:/home/pod/.cache/huggingface # SAM 3 weights
+      - ${POD_DATA:-/srv/pod-studio}/claude:/home/pod/.claude
+    env_file:
+      - ${POD_DATA:-/srv/pod-studio}/secrets/claude.env   # CLAUDE_CODE_OAUTH_TOKEN=..., HF_TOKEN=...
+    environment:
+      OMP_NUM_THREADS: "3"
+      POD_OFFLOAD: "1"                                # việc AI nặng gửi sang Mac khi Mac đang nhận việc
+      TZ: Asia/Ho_Chi_Minh
+    cpus: 3
+    mem_limit: 12g
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+networks:
+  gate:
+    external: true
+    name: ${POD_GATE_NETWORK:-vitu-monitor_default}

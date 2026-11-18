@@ -5,6 +5,7 @@ import hashlib
 import hmac
 from http.cookies import SimpleCookie, CookieError
 import json
+import os
 from pathlib import Path
 import re
 import secrets
@@ -34,7 +35,8 @@ color:white;border:0;font-weight:650;cursor:pointer}:focus-visible{outline:3px s
 
 
 def is_online(handler):
-    return handler.headers.get('X-POD-Online') == '1'
+    # On a server (Oracle) every request counts as online: login required, no "full" Claude mode.
+    return os.environ.get('POD_ONLINE_ONLY') == '1' or handler.headers.get('X-POD-Online') == '1'
 
 
 class OnlineAuth:
