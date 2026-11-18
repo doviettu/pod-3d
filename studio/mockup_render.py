@@ -15,6 +15,8 @@ import cv2
 import numpy as np
 
 ZONES = ('rect', 'quad', 'mesh', 'cylinder')
+SIDES = ('front', 'back')
+MAX_ZONES = 6
 DEFAULTS = {'fold': 1.0, 'light': 1.0, 'texture': 0.5, 'fit': 'contain'}
 
 
@@ -36,9 +38,10 @@ def auto_mask(bgr):
             cv2.floodFill(reach, flood, (x, y), 2)
     mask = (reach != 2).astype(np.uint8)
     count, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=4)
-    if count > 1:   # keep the product, drop specks of noise in the background
-        keep = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
-        mask = (labels == keep).astype(np.uint8)
+    if count > 1:   # keep the products (front and back views can sit side by side), drop specks of noise
+        areas = stats[1:, cv2.CC_STAT_AREA]
+        keep = 1 + np.nonzero(areas >= 0.15 * areas.max())[0]
+        mask = np.isin(labels, keep).astype(np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
     return mask * 255
 
@@ -86,14 +89,20 @@ def _px(points, w, h):
     return np.array([[x * w, y * h] for x, y in points], np.float32)
 
 
-def default_zone(mask, kind='rect'):
-    """A chest-sized print area inside the product's outline (a starting point to adjust)."""
-    ys, xs = np.nonzero(mask)
-    h, w = mask.shape
-    if not len(xs):
-        x0, y0, x1, y1 = w * 0.3, h * 0.25, w * 0.7, h * 0.7
-    else:
-        x0, x1, y0, y1 = xs.min(), xs.max(), ys.min(), ys.max()
+def garments(mask):
+    """Bounding boxes (x0, y0, x1, y1) in pixels of each product in the mask, left to right."""
+    count, _, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), connectivity=8)
+    boxes = [(x, y, x + bw - 1, y + bh - 1) for x, y, bw, bh, area in stats[1:] if area > 0]
+    if not boxes:
+        return []
+    biggest = max(stats[1:, cv2.CC_STAT_AREA])
+    boxes = [b for b, area in zip(boxes, stats[1:, cv2.CC_STAT_AREA]) if area >= 0.15 * biggest]
+    return sorted(boxes)
+
+
+def _zone_in(box, shape, kind):
+    h, w = shape
+    x0, y0, x1, y1 = box
     bw, bh = x1 - x0, y1 - y0
     if kind == 'cylinder':
         return {'type': 'cylinder', 'box': [(x0 + bw * 0.08) / w, (y0 + bh * 0.15) / h, (x1 - bw * 0.22) / w,
@@ -107,9 +116,48 @@ def default_zone(mask, kind='rect'):
     return {'type': 'mesh', 'points': [[(zx + zw * i / 3) / w, (zy + zh * j / 3) / h] for j in range(4) for i in range(4)]}
 
 
+def default_zone(mask, kind='rect'):
+    """A chest-sized print area inside the first product's outline (a starting point to adjust)."""
+    h, w = mask.shape
+    boxes = garments(mask) or [(w * 0.3, h * 0.25, w * 0.7, h * 0.7)]
+    return {**_zone_in(boxes[0], (h, w), kind), 'side': 'front'}
+
+
+def default_zones(mask, kind='rect'):
+    """One print area per product in the photo. Side views (much narrower than the widest
+    product) get none; with several products the first is the front and the last the back."""
+    h, w = mask.shape
+    boxes = garments(mask)
+    if not boxes:
+        return [default_zone(mask, kind)]
+    if kind != 'cylinder':
+        widest = max(b[2] - b[0] for b in boxes)
+        boxes = [b for b in boxes if b[2] - b[0] >= 0.6 * widest]
+    boxes = boxes[:MAX_ZONES]
+    zones = [{**_zone_in(b, (h, w), kind), 'side': 'front'} for b in boxes]
+    if len(zones) > 1 and kind != 'cylinder':
+        zones[-1]['side'] = 'back'
+    return zones
+
+
 def check_zone(zone):
     if not isinstance(zone, dict) or zone.get('type') not in ZONES:
         raise ValueError('Kiểu vùng in không hợp lệ.')
+    if zone.get('side', 'front') not in SIDES:
+        raise ValueError('Mặt in của vùng phải là trước hoặc sau.')
+    return {**_check_shape(zone), 'side': zone.get('side', 'front')}
+
+
+def check_zones(zones):
+    """A list of zones (an old preset's single zone is accepted too)."""
+    if isinstance(zones, dict):
+        zones = [zones]
+    if not isinstance(zones, list) or not 1 <= len(zones) <= MAX_ZONES:
+        raise ValueError(f'Cần 1 đến {MAX_ZONES} vùng in.')
+    return [check_zone(z) for z in zones]
+
+
+def _check_shape(zone):
     kind = zone['type']
 
     def nums(values, n):
@@ -240,11 +288,32 @@ def _place_cylinder(art, zone, size, fit):
 
 
 # ---- render ------------------------------------------------------------------
-def render(bgr, maps, art_rgba, zone, options=None):
-    """Composite the design onto the blank. art_rgba: uint8 H×W×4 (RGB order). Returns BGR."""
+def art_for(arts, side, only_zone):
+    """The design for a zone: its own side's; a preset with a single zone takes whichever side there is."""
+    if not isinstance(arts, dict):
+        return arts
+    if arts.get(side) is not None:
+        return arts[side]
+    if only_zone:
+        return next((a for a in arts.values() if a is not None), None)
+    return None
+
+
+def render(bgr, maps, arts, zones, options=None):
+    """Composite the design(s) onto the blank. arts: uint8 H×W×4 (RGB order), or {side: array}
+    when the photo shows several sides. zones: one zone or a list. Returns BGR."""
     o = {**DEFAULTS, **(options or {})}
+    zones = check_zones(zones)
+    out = bgr
+    for zone in zones:
+        art = art_for(arts, zone['side'], len(zones) == 1)
+        if art is not None:
+            out = _render_zone(out, maps, art, zone, o)
+    return out
+
+
+def _render_zone(bgr, maps, art_rgba, zone, o):
     h, w = bgr.shape[:2]
-    zone = check_zone(zone)
     placed = place(art_rgba, zone, (w, h), o.get('fit', 'contain'))
     if zone['type'] == 'cylinder':
         # Curved bodies get darker towards the sides; the photo's own light already carries most of it.
@@ -268,10 +337,17 @@ def render(bgr, maps, art_rgba, zone, options=None):
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
-def flat(bgr, art_rgba, zone, fit='contain'):
-    """Design pasted with no folds or light, to check its position."""
+def flat(bgr, arts, zones, fit='contain'):
+    """Design(s) pasted with no folds or light, to check the position."""
     h, w = bgr.shape[:2]
-    placed = place(art_rgba, check_zone(zone), (w, h), fit)
-    alpha = placed[..., 3:4] / 255
-    rgb = np.where(alpha > 1e-4, placed[..., :3] / np.maximum(alpha, 1e-4), 0)[..., ::-1]
-    return np.clip(bgr * (1 - alpha) + rgb * alpha, 0, 255).astype(np.uint8)
+    zones = check_zones(zones)
+    out = bgr
+    for zone in zones:
+        art = art_for(arts, zone['side'], len(zones) == 1)
+        if art is None:
+            continue
+        placed = place(art, zone, (w, h), fit)
+        alpha = placed[..., 3:4] / 255
+        rgb = np.where(alpha > 1e-4, placed[..., :3] / np.maximum(alpha, 1e-4), 0)[..., ::-1]
+        out = np.clip(out * (1 - alpha) + rgb * alpha, 0, 255).astype(np.uint8)
+    return out

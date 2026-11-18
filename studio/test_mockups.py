@@ -75,6 +75,21 @@ class RenderTests(unittest.TestCase):
         self.assertGreater(len(gaps), 6)
         self.assertGreater(gaps[len(gaps) // 2], 1.5 * max(gaps[0], gaps[-1]))   # stripes bunch up towards the sides
 
+    def test_front_and_back_side_by_side(self):
+        tee, _ = blank_tee(900, 900)
+        pair = np.full((900, 1800, 3), 236, np.uint8)
+        pair[:, :900], pair[:, 900:] = tee, tee
+        maps = mr.bake(pair)
+        zones = mr.default_zones(maps['mask'])
+        self.assertEqual([z['side'] for z in zones], ['front', 'back'])
+        self.assertLess(zones[0]['box'][0], 0.5)
+        self.assertGreater(zones[1]['box'][0], 0.5)
+        out = mr.render(pair, maps, {'front': art((250, 210, 30)), 'back': art((30, 60, 250))}, zones)
+        self.assertGreater(int(out[400, 450, 2]), 150)          # yellow front (BGR red channel)
+        self.assertGreater(int(out[400, 1350, 0]), 150)         # blue back
+        only_front = mr.render(pair, maps, {'front': art()}, zones)
+        self.assertTrue((only_front[:, 900:] == pair[:, 900:]).all())   # no back design: back stays blank
+
     def test_bad_zones(self):
         for zone in ({'type': 'blob'}, {'type': 'rect', 'box': [0, 0, 0, 0.5]}, {'type': 'quad', 'points': [[0, 0]]},
                      {'type': 'cylinder', 'box': [0.1, 0.1, 0.5, 0.9], 'wrap': 400}):
@@ -88,16 +103,25 @@ class LibraryTests(unittest.TestCase):
             lib = MockupLibrary(tmp)
             img, _ = blank_tee()
             preset = lib.create(jpeg(img), 'Tee đen trơn', 'Mặt trước')
-            self.assertEqual(preset['zone']['type'], 'rect')
+            self.assertEqual([z['type'] for z in preset['zones']], ['rect'])
             self.assertEqual(lib.groups(), ['Tee đen trơn'])
             moved = lib.update(preset['id'], {'zone': mr.default_zone(np.ones((10, 10), np.uint8) * 255, 'quad'),
                                                'options': {'fold': 2, 'fit': 'cover'}})
-            self.assertEqual(moved['zone']['type'], 'quad')
+            self.assertEqual(moved['zones'][0]['type'], 'quad')
             self.assertEqual(moved['options']['fold'], 2)
             with self.assertRaises(ValueError):
                 lib.update(preset['id'], {'options': {'fold': 99}})
             self.assertEqual(lib.render(preset['id'], art()).shape, img.shape)
             self.assertEqual(lib.diagnostic(preset['id'], 'disp').dtype, np.uint8)
+            cutout = io.BytesIO()
+            rgba = np.zeros((600, 600, 4), np.uint8)
+            rgba[150:450, 200:400] = (40, 40, 45, 255)
+            Image.fromarray(rgba).save(cutout, 'PNG')
+            cut = lib.create(cutout.getvalue(), 'Tee', 'Nền trong suốt')
+            blank = cv2.imread(str(lib.file(cut['id'], 'blank.jpg')))
+            self.assertGreater(int(blank[10, 10].min()), 240)       # transparent background became white
+            self.assertIn('warning', cut)                           # 600 px is too small for a listing
+            lib.delete(cut['id'])
             lib.delete(preset['id'])
             self.assertEqual(lib.list(), [])
             with self.assertRaises(KeyError):

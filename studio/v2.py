@@ -508,21 +508,30 @@ class StudioV2:
     def redesign_variants(self, rid, data):
         return self.redesign.variants(rid, data, self._font_path)
 
-    def _art(self, data):
-        """The design to place: an uploaded PNG, or a side of a finished 2D job."""
+    def _arts(self, data):
+        """The design(s) to place, by side: an uploaded PNG (data['side'] says which side it is:
+        front, back or both), or a finished 2D job (one side, or every side it has)."""
         if data.get('art_base64'):
-            return mockups.decode_rgba(sources.from_base64(data['art_base64']))
+            art = mockups.decode_rgba(sources.from_base64(data['art_base64']))
+            side = data.get('side') if data.get('side') in ('front', 'back') else None
+            return {side: art} if side else {'front': art, 'back': art}
         job = self.get(data.get('job_id') or '')
         sides = job['outputs'].get('sides', {}) if job['kind'] == '2d' else {}
         if not sides:
             raise ValueError('Hãy chọn một job 2D đã xử lý xong hoặc tải lên file PNG art.')
-        side = data.get('side') if data.get('side') in sides else 'front' if 'front' in sides else next(iter(sides))
-        return mockups.decode_rgba((self.jobs_dir / job['id'] / sides[side]['file']).read_bytes())
+        chosen = [data['side']] if data.get('side') in sides else list(sides)
+        return {side: mockups.decode_rgba((self.jobs_dir / job['id'] / sides[side]['file']).read_bytes())
+                for side in chosen}
+
+    def _art(self, data):
+        """One design: an uploaded PNG, or one side of a finished 2D job (front first)."""
+        arts = self._arts({**data, 'side': data.get('side') or 'front'} if not data.get('art_base64') else data)
+        return arts.get('front', next(iter(arts.values())))
 
     def mockup_preview(self, preset_id, data):
         data = data or {}
-        image = self.mockups.render(preset_id, self._art(data), data.get('zone'), data.get('options'),
-                                    flat=data.get('mode') == 'flat')
+        image = self.mockups.render(preset_id, self._arts(data), data.get('zones') or data.get('zone'),
+                                    data.get('options'), flat=data.get('mode') == 'flat')
         folder = self.mockups.file(preset_id, 'blank.jpg').parent
         listing.save_jpeg(Image.fromarray(image[..., ::-1]), folder / 'preview.jpg', 2_500_000)
         return {'url': f'/api/v2/mockups/{preset_id}/preview.jpg?t={datetime.now().timestamp():.0f}'}
@@ -538,14 +547,14 @@ class StudioV2:
         presets = [p for p in self.mockups.list() if p['group'] == group]
         if not presets:
             raise ValueError('Nhóm mockup không có ảnh nào.')
-        art = self._art({'job_id': job_id, 'side': (data or {}).get('side')})
+        arts = self._arts({'job_id': job_id, 'side': (data or {}).get('side')})
         out = self.jobs_dir / job_id / 'mockups'
         out.mkdir(parents=True, exist_ok=True)
         for old in out.glob('*.jpg'):
             old.unlink()
         made = []
         for preset in presets:
-            image = self.mockups.render(preset['id'], art)
+            image = self.mockups.render(preset['id'], arts)
             name = f'{preset["id"]}.jpg'
             listing.save_jpeg(Image.fromarray(image[..., ::-1]), out / name, 2_500_000)
             made.append({'file': f'mockups/{name}', 'preset': preset['id'], 'name': preset['name']})

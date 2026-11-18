@@ -1,7 +1,7 @@
 """Library of blank product photos (presets) for sales mockups, grouped, stored under runtime.
 
-runtime/mockups/<id>/ holds blank.jpg, maps.npz (baked once), preset.json (group, name, zone,
-options). Photos are the seller's own or bought with a commercial licence; they never go to git.
+runtime/mockups/<id>/ holds blank.jpg, maps.npz (baked once), preset.json (group, name, zones,
+options). A photo with the front and back side by side has one zone per side. Photos are the seller's own or bought with a commercial licence; they never go to git.
 """
 from datetime import datetime
 import io
@@ -20,6 +20,7 @@ import mockup_render as render
 
 ID = re.compile(r'[a-z0-9-]{3,80}')
 MAX_EDGE = 3000
+SMALL_EDGE = 1200   # below this the listing images come out soft
 KINDS = ('tee', 'mug')
 
 
@@ -51,7 +52,12 @@ class MockupLibrary:
 
     def get(self, preset_id):
         preset = json.loads((self._folder(preset_id) / 'preset.json').read_text())
-        return {**preset, 'blank_url': f'/api/v2/mockups/{preset_id}/blank.jpg'}
+        zones = render.check_zones(preset.pop('zone', None) if 'zones' not in preset else preset['zones'])
+        out = {**preset, 'zones': zones, 'blank_url': f'/api/v2/mockups/{preset_id}/blank.jpg'}
+        if max(preset.get('size') or [SMALL_EDGE]) < SMALL_EDGE:
+            out['warning'] = (f'Ảnh trơn chỉ {max(preset["size"])} px: ảnh bán hàng sẽ hơi mờ. '
+                              f'Nên dùng ảnh từ {SMALL_EDGE} px trở lên.')
+        return out
 
     def list(self):
         out = []
@@ -71,7 +77,11 @@ class MockupLibrary:
         group = (group or '').strip()[:60] or 'Chung'
         name = (name or '').strip()[:80] or 'Mockup'
         with Image.open(io.BytesIO(raw)) as image:
-            photo = ImageOps.exif_transpose(image).convert('RGB')
+            photo = ImageOps.exif_transpose(image)
+            if photo.mode in ('RGBA', 'LA', 'P', 'PA'):   # a cut-out product: put it on white, not black
+                photo = photo.convert('RGBA')
+                photo = Image.alpha_composite(Image.new('RGBA', photo.size, (255, 255, 255, 255)), photo)
+            photo = photo.convert('RGB')
         photo.thumbnail((MAX_EDGE, MAX_EDGE), Image.Resampling.LANCZOS)
         bgr = np.asarray(photo)[..., ::-1].copy()
         maps = render.bake(bgr)
@@ -87,7 +97,7 @@ class MockupLibrary:
             cv2.imwrite(str(folder / 'blank.jpg'), bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
             np.savez_compressed(folder / 'maps.npz', **maps)
             preset = {'id': preset_id, 'group': group, 'name': name, 'kind': kind, 'size': [bgr.shape[1], bgr.shape[0]],
-                      'zone': render.default_zone(maps['mask'], 'cylinder' if kind == 'mug' else 'rect'),
+                      'zones': render.default_zones(maps['mask'], 'cylinder' if kind == 'mug' else 'rect'),
                       'options': dict(render.DEFAULTS), 'created': datetime.now().isoformat(timespec='seconds')}
             (folder / 'preset.json').write_text(json.dumps(preset, ensure_ascii=False, indent=2))
         except Exception:
@@ -99,8 +109,9 @@ class MockupLibrary:
         folder = self._folder(preset_id)
         with self.lock:
             preset = json.loads((folder / 'preset.json').read_text())
-            if 'zone' in data:
-                preset['zone'] = render.check_zone(data['zone'])
+            if 'zones' in data or 'zone' in data:
+                preset.pop('zone', None)
+                preset['zones'] = render.check_zones(data['zones'] if 'zones' in data else data['zone'])
             if 'options' in data:
                 preset['options'] = self.check_options(data['options'])
             for key, limit in (('group', 60), ('name', 80)):
@@ -139,14 +150,15 @@ class MockupLibrary:
             self._maps = {preset_id: (cv2.imread(str(folder / 'blank.jpg')), maps)}   # keep one in memory
         return self._maps[preset_id]
 
-    def render(self, preset_id, art_rgba, zone=None, options=None, flat=False):
+    def render(self, preset_id, arts, zones=None, options=None, flat=False):
+        """arts: one RGBA design, or {side: design} for photos that show several sides."""
         preset = self.get(preset_id)
         blank, maps = self._load(preset_id)
-        zone = render.check_zone(zone or preset['zone'])
+        zones = render.check_zones(zones or preset['zones'])
         options = self.check_options(options) if options is not None else preset['options']
         if flat:
-            return render.flat(blank, art_rgba, zone, options.get('fit', 'contain'))
-        return render.render(blank, maps, art_rgba, zone, options)
+            return render.flat(blank, arts, zones, options.get('fit', 'contain'))
+        return render.render(blank, maps, arts, zones, options)
 
     def diagnostic(self, preset_id, name):
         if name not in ('mask', 'light', 'disp', 'texture'):
