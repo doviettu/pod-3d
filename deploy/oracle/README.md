@@ -46,3 +46,15 @@ Oracle chậm hơn Mac khoảng 20–28 lần ở Real-ESRGAN/LaMa/SAM 3, nên c
 1. Trên Oracle: `docker exec pod-studio python studio/worker_api.py token` (tạo `studio/runtime/worker/token`).
 2. Trên Mac, tạo `~/.config/pod-studio/worker.json` (chmod 600): `{"url": "https://pod.vitumonitor.duckdns.org", "token": "<nội dung file token>"}`.
 3. Trên Mac: `.venv/bin/python studio/service.py worker` (launchd `com.podstudio.worker`, log ở `studio/runtime/logs/worker.log`).
+
+## Sao lưu mỗi đêm
+
+`studio/backup.py` nén cơ sở dữ liệu job, khuôn, mockup, font, bản quyền/ngân sách (không gồm file job lớn và không gồm mật khẩu/token) rồi tải lên Google Drive `POD Studio/Sao lưu`, giữ 14 bản mới nhất (máy chủ giữ 3 bản trong `studio/runtime/backups/`). Cron trên máy Oracle (2:00 sáng giờ VN):
+
+```
+0 19 * * * docker exec pod-studio python studio/backup.py >> /srv/pod-studio/backup.log 2>&1
+```
+
+## Chất lượng cao
+
+Ô "Chất lượng cao" ở tab 2D và 3D: Real-ESRGAN trung bình 8 hướng xoay/lật (lâu hơn khoảng 8 lần, ít nhiễu và quầng hơn) với mép ô chồng rộng gấp đôi; LaMa vá ở 1280 px thay vì 768 px. Khi Mac đang nhận việc thì phần này chạy trên Mac.

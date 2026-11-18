@@ -46,8 +46,9 @@ def available(name=DEFAULT_MODEL):
 
 def upscale(img, factor, model_name=DEFAULT_MODEL, log=print):
     """Upscale BGR img by `factor` (any value >1). Model passes are x4, the rest is Lanczos."""
-    from . import offload
-    remote = offload.run('upscale', {'img': img}, {'factor': float(factor), 'model': model_name})
+    from . import offload, quality
+    remote = offload.run('upscale', {'img': img}, {'factor': float(factor), 'model': model_name,
+                                                   'hq': quality.enabled()})
     if remote is not None:
         log("    upscaled on the worker (Mac)")
         return remote['out']
@@ -66,6 +67,9 @@ def upscale(img, factor, model_name=DEFAULT_MODEL, log=print):
 
 def _run_model(model, img):
     import torch
+    from . import quality
+    hq = quality.enabled()
+    pad = PAD * 2 if hq else PAD
     dev = next(model.model.parameters()).device
     s = model.scale
     h, w = img.shape[:2]
@@ -74,11 +78,27 @@ def _run_model(model, img):
     with torch.inference_mode():
         for y in range(0, h, TILE):
             for x in range(0, w, TILE):
-                y0, x0 = max(0, y - PAD), max(0, x - PAD)
-                y1, x1 = min(h, y + TILE + PAD), min(w, x + TILE + PAD)
+                y0, x0 = max(0, y - pad), max(0, x - pad)
+                y1, x1 = min(h, y + TILE + pad), min(w, x + TILE + pad)
                 t = torch.from_numpy(rgb[y0:y1, x0:x1].transpose(2, 0, 1)).unsqueeze(0).to(dev)
-                r = model(t).clamp(0, 1)[0].permute(1, 2, 0).float().cpu().numpy()
+                r = (_tta(model, t) if hq else model(t)).clamp(0, 1)[0].permute(1, 2, 0).float().cpu().numpy()
                 ty, tx = (y - y0) * s, (x - x0) * s
                 hh, ww = min(TILE, h - y) * s, min(TILE, w - x) * s
                 out[y * s:y * s + hh, x * s:x * s + ww] = r[ty:ty + hh, tx:tx + ww]
     return cv2.cvtColor((out * 255 + 0.5).astype(np.uint8), cv2.COLOR_RGB2BGR)
+
+
+def _tta(model, t):
+    """Average the model over the 8 flips/rotations (self-ensemble): less noise and fewer
+    one-sided halos, about 8x the time. Used only for "Chất lượng cao" jobs."""
+    import torch
+    acc = None
+    for k in range(4):
+        for flip in (False, True):
+            x = torch.rot90(t, k, (2, 3))
+            x = torch.flip(x, (3,)) if flip else x
+            y = model(x)
+            y = torch.flip(y, (3,)) if flip else y
+            y = torch.rot90(y, -k, (2, 3))
+            acc = y if acc is None else acc + y
+    return acc / 8

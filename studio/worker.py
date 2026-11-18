@@ -30,6 +30,12 @@ def load_config(path=CONFIG):
 
 def run_task(kind, params, arrays):
     """Run one step locally (offload is off in this process, so these never re-queue)."""
+    from pod3d import quality
+    with quality.hq_scope(params.get('hq')):
+        return _run_task(kind, params, arrays)
+
+
+def _run_task(kind, params, arrays):
     if kind == 'upscale':
         from pod3d import upscale
         return {'out': upscale.upscale(arrays['img'], params['factor'], params.get('model') or upscale.DEFAULT_MODEL,

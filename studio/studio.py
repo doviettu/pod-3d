@@ -214,7 +214,7 @@ class Engine:
             raise ValueError("Khuôn chưa đủ dữ liệu: " + ", ".join(info["missing"]))
         if data.get("gemini"):
             raise ValueError("Ứng dụng đã chuyển sang OpenAI. Hãy tải lại giao diện và chọn OpenAI.")
-        for option in ("use_model", "openai", "use_reference"):
+        for option in ("use_model", "openai", "use_reference", "hq"):
             if not isinstance(data.get(option, False), bool):
                 raise ValueError("Tuỳ chọn xử lý phải là bật hoặc tắt.")
         use_openai = data.get("openai", False)
@@ -275,7 +275,7 @@ class Engine:
             job = {"id": job_id, "status": "queued", "created_at": now(), "updated_at": now(),
                    "template": name, "filename": str(filename)[:200], "openai": use_openai,
                    "provider": "openai" if use_openai else "local",
-                   "use_model": data.get("use_model", True), "panels": panels,
+                   "use_model": data.get("use_model", True), "hq": data.get("hq", False), "panels": panels,
                    "ai_mode": ai_mode if use_openai else None, "auto_panels": auto_panels,
                    "model": config.model if use_openai else None, "image_size": config.image_size if use_openai else None,
                    "quality": config.quality if use_openai else None,
@@ -479,6 +479,11 @@ class Engine:
             temp.unlink(missing_ok=True)
 
     def process(self, job_id, source, config):
+        from pod3d import quality
+        with quality.hq_scope(self.get_job(job_id).get('hq', False)):
+            return self._process(job_id, source, config)
+
+    def _process(self, job_id, source, config):
         try:
             job = self.get_job(job_id)
             self.update(job_id, status="running", stage='local_reference')

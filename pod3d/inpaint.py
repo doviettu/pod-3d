@@ -30,18 +30,20 @@ def available():
 
 
 WORK_SIDE = 768  # LaMa keeps structure best near its training size; big holes smear at full size
+HQ_WORK_SIDE = 1280  # "Chất lượng cao": more detail kept, slower
 STEP = 40  # progressive fill: px (at WORK_SIDE scale) added around the known area per pass
 
 
 def inpaint(img, mask):
     """Fill in rings from the known area outwards. LaMa copies texture well into a narrow gap
     but smears across a wide one, so a wide hole is closed a ring at a time."""
-    from . import offload
-    remote = offload.run('inpaint', {'img': img, 'mask': mask.astype(bool)})
+    from . import offload, quality
+    hq = quality.enabled()
+    remote = offload.run('inpaint', {'img': img, 'mask': mask.astype(bool)}, {'hq': hq})
     if remote is not None:
         return remote['out']
     h, w = img.shape[:2]
-    s = min(1.0, WORK_SIDE / max(h, w))
+    s = min(1.0, (HQ_WORK_SIDE if hq else WORK_SIDE) / max(h, w))
     small = cv2.resize(img, (round(w * s), round(h * s)), interpolation=cv2.INTER_AREA) if s < 1 else img.copy()
     hole = cv2.resize(mask.astype(np.uint8), small.shape[1::-1], interpolation=cv2.INTER_NEAREST) > 0
     k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * STEP + 1, 2 * STEP + 1))

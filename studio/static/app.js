@@ -333,7 +333,7 @@ function enableBoxEditing(stage, index) {
 $('#run-2d').addEventListener('click', async () => {
   const s = state['2d'];
   const body = {
-    kind: '2d', sides: sidesChoice(), background: $('input[name=background]:checked').value,
+    kind: '2d', sides: sidesChoice(), background: $('input[name=background]:checked').value, hq: $('#hq-2d').checked,
     sources: s.sources.map(src => ({ source_id: src.source_id })),
   };
   // The boxes on screen are what the user checked, so always send them.
@@ -626,7 +626,7 @@ $('#run-3d').addEventListener('click', async () => {
     $('#run-3d').disabled = true;
     const job = await api('/api/v2/jobs', {
       kind: '3d', template: $('#template').value, openai: ai, panels: ai ? panels : [], ai_mode: aiMode(),
-      use_model: $('#use-model').checked, sources: [{ source_id: state['3d'].sources[0].source_id }],
+      use_model: $('#use-model').checked, hq: $('#hq-3d').checked, sources: [{ source_id: state['3d'].sources[0].source_id }],
     });
     note('3d', '');
     showJob(job, '3d');

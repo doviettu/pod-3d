@@ -273,7 +273,7 @@ class StudioV2:
         if boxes is not None:
             boxes = self._check_boxes(boxes, len(entries))
         infos = [self.load_source(e, download) for e in entries]
-        params = {'sides': sides, 'background': background, 'boxes': boxes,
+        params = {'sides': sides, 'background': background, 'boxes': boxes, 'hq': data.get('hq') is True,
                   'sources': [{'source_id': i['source_id'], 'url': i['url'], 'width': i['width'],
                                'height': i['height']} for i in infos]}
         key = hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()
@@ -318,8 +318,10 @@ class StudioV2:
             folder = self.jobs_dir / job_id
             rgbs = [np.asarray(sources.decode_rgb(p.read_bytes())) for p in sorted(folder.glob('source[12].*'))]
             p = job['params']
-            outputs, report = art2d.run(rgbs, folder, sides=p['sides'], boxes=p['boxes'],
-                                        background=p['background'], log=lambda m: store.log(job_id, m))
+            from pod3d import quality
+            with quality.hq_scope(p.get('hq', False)):
+                outputs, report = art2d.run(rgbs, folder, sides=p['sides'], boxes=p['boxes'],
+                                            background=p['background'], log=lambda m: store.log(job_id, m))
             # Screen before showing the result, so the card never appears without its rights level.
             self._screen(job_id, [(side, folder / f'{side}.png') for side in outputs])
             store.update(job_id, status='review', outputs={'sides': outputs},
