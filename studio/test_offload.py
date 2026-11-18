@@ -56,6 +56,16 @@ class BrokerTests(unittest.TestCase):
         thread.join(2)
         self.assertIsNone(out['r'])
 
+    def test_busy_worker_stays_online(self):
+        now = [0.0]
+        broker = offload.Broker(clock=lambda: now[0])
+        broker.next(wait=0)
+        threading.Thread(target=lambda: broker.run('upscale', {'img': np.zeros(1)}), daemon=True).start()
+        task = broker.next(wait=2)
+        now[0] = 100.0   # long task, no poll for 100 s
+        self.assertTrue(broker.worker_online())
+        broker.finish(task.id, offload.pack({'out': np.zeros(1)}))
+
     def test_disabled_without_env(self):
         os.environ.pop('POD_OFFLOAD', None)
         self.assertIsNone(offload.run('upscale', {'img': np.zeros(1)}))

@@ -360,7 +360,8 @@ class StudioV2:
         legacy = self.engine.submit(payload)
         job = self.store.create('3d', 'ai' if legacy.get('openai') else 'local', source_url=info['url'],
                                 source_sha256=info['source_id'],
-                                params={'template': legacy.get('template'), 'panels': legacy.get('panels')})
+                                params={'template': legacy.get('template'), 'panels': legacy.get('panels'),
+                                        'hq': bool(legacy.get('hq'))})
         job = self.store.update(job['id'], legacy_id=legacy['id'])
         return self._screen(job['id'], [('mockup', info['path'])])
 

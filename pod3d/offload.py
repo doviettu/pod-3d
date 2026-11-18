@@ -50,6 +50,9 @@ class Broker:
         self.stats = {'offloaded': 0, 'fallback': 0}
 
     def worker_online(self):
+        """A worker counts as online when it polled recently or is busy with a task it claimed."""
+        if any(t.claimed is not None and not t.done.is_set() for t in self.tasks.values()):
+            return True
         return self.last_poll is not None and self.clock() - self.last_poll < WORKER_TTL
 
     def status(self):
