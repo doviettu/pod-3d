@@ -214,6 +214,62 @@
         <p class="note" id="note-rd"></p>
       </div>
     </div>
+    <div class="grid kr-grid">
+      <div class="panel">
+        <h2>Xoá nền key</h2>
+        <p class="muted" id="kr-info">Ảnh AI vẽ trên nền xanh #00FF00 (hoặc hồng, xanh dương, trắng, đen) → PNG trong suốt, viền mềm, không ám màu nền. Chạy trên máy, không tốn API. Thiết kế nền xanh đưa vào Phân tích ở trên cũng được tự xoá nền.</p>
+        <div id="kr-stage" class="kr-stage" hidden>
+          <img id="kr-after" alt="Kết quả PNG trong suốt">
+          <div class="kr-before"><img id="kr-before" alt="Ảnh gốc"></div>
+          <span class="kr-tag l">Gốc</span><span class="kr-tag r">Đã xoá nền</span>
+        </div>
+        <p class="muted" id="kr-stats"></p>
+      </div>
+      <div class="panel">
+        <label class="block">File PNG/JPG <input id="kr-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+        <label class="block">Chế độ <select id="kr-preset">
+          <option value="balanced">Cân bằng: đa số ảnh AI nền phẳng</option>
+          <option value="safe">Giữ màu xanh: giữ chi tiết xanh nằm trong design</option>
+          <option value="max">Khử viền mạnh: JPEG viền bẩn (mất nét dưới 2 px)</option>
+        </select></label>
+        <label class="block">Màu nền <select id="kr-key">
+          <option value="auto">Tự dò (nền màu)</option>
+          <option value="auto-all">Tự dò (cả trắng/đen)</option>
+          <option value="green">Green #00FF00</option>
+          <option value="blue">Blue #0047BB</option>
+          <option value="pink">Pink #FF00FF</option>
+          <option value="cyan">Cyan #00FFFF</option>
+          <option value="white">Trắng #FFFFFF</option>
+          <option value="black">Đen #000000</option>
+        </select></label>
+        <label class="check"><input type="checkbox" id="kr-trim"> Cắt sát phần có hình</label>
+        <label class="check"><input type="checkbox" id="kr-matting"> Viền khói, tóc, quầng sáng (matting, chậm hơn 5–15 giây)</label>
+        <button id="kr-run" class="accent">Xoá nền</button>
+        <div class="actions" id="kr-actions" hidden>
+          <a class="button" id="kr-download" download="design.png">Tải PNG</a>
+          <button id="kr-to-rd">Dùng cho Redesign</button>
+        </div>
+        <p class="note" id="note-kr"></p>
+      </div>
+    </div>
+    <div class="grid kr-grid">
+      <div class="panel">
+        <h2>Tách hoạ tiết lặp (tile liền mạch)</h2>
+        <p class="muted" id="pt-info">Từ ảnh hoạ tiết in tràn phẳng (mảnh đã trải phẳng của job 3D, hoặc ảnh vải chụp thẳng), tìm ô lặp, lấy trung vị mọi bản lặp để khử nhiễu, ra tile ghép liền mạch. Hoạ tiết chỉ lặp một chiều (bo gấu, bo tay, sọc tay áo) ra tile dải: rộng một chu kỳ, cao bằng ảnh. Không dùng AI, không tốn phí.</p>
+        <img id="pt-preview" class="pt-preview" alt="Tile ghép 3 × 3 để soi đường nối" hidden>
+        <p class="muted" id="pt-stats"></p>
+      </div>
+      <div class="panel">
+        <label class="block">File PNG/JPG <input id="pt-file" type="file" accept="image/png,image/jpeg,image/webp"></label>
+        <label class="block">Cạnh dài của tile (px) <input id="pt-edge" type="number" min="256" max="6000" step="1" value="2048"></label>
+        <button id="pt-run" class="accent">Tách tile</button>
+        <div class="actions" id="pt-actions" hidden>
+          <a class="button" id="pt-download" download="pattern-tile.png">Tải tile PNG</a>
+          <a class="button" id="pt-download-preview" download="pattern-preview.jpg">Tải ảnh ghép thử</a>
+        </div>
+        <p class="note" id="note-pt"></p>
+      </div>
+    </div>
   </section>
 
   <!-- Library -->

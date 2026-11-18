@@ -844,7 +844,7 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(415, {"error": "Yêu cầu phải có định dạng JSON."})
             return
         length = self.headers.get("Content-Length", "")
-        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template', '/api/claude/chat') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review|/api/v2/jobs/[a-f0-9]{32}/real-photo|/api/v2/mockups(?:/[a-z0-9-]{3,80}/preview)?|/api/v2/redesign', self.path) else 128 * 1024 if self.path in ('/api/design-plan', '/api/v2/rights-config') else 16 * 1024
+        limit = MAX_BODY if self.path in ('/api/v2/inspect', '/api/v2/jobs', '/api/jobs', '/api/fonts', '/api/detect-template', '/api/claude/chat') or re.fullmatch(r'/api/jobs/[a-f0-9]{32}/review|/api/v2/jobs/[a-f0-9]{32}/real-photo|/api/v2/mockups(?:/[a-z0-9-]{3,80}/preview)?|/api/v2/redesign|/api/v2/key-remove|/api/v2/pattern-tile', self.path) else 128 * 1024 if self.path in ('/api/design-plan', '/api/v2/rights-config') else 16 * 1024
         if not length.isdigit() or len(length) > 9 or not 0 < int(length) <= limit:
             self.send_json(413, {"error": "Dữ liệu quá lớn hoặc thiếu độ dài."})
             return
@@ -902,6 +902,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(201, self.server.v2.mockup_create(data))
             elif self.path == "/api/v2/redesign":
                 self.send_json(201, self.server.v2.redesign_analyze(data))
+            elif self.path == "/api/v2/key-remove":
+                self.send_json(200, self.server.v2.key_remove(data))
+            elif self.path == "/api/v2/pattern-tile":
+                self.send_json(200, self.server.v2.pattern_tile(data))
             elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}/prompt", self.path):
                 self.send_json(200, self.server.v2.redesign_prompt(self.path.split("/")[4], data))
             elif re.fullmatch(r"/api/v2/redesign/rd-\d{6}-\d{6}-\d{1,3}/(?:analyze-ai|edit|variants)", self.path):

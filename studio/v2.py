@@ -4,7 +4,9 @@
 unwrap, OpenAI restore, review, PSD) and linked by legacy_id. Both share the
 Engine's single worker so only one heavy job runs at a time on a 16 GB Mac.
 """
+import base64
 from datetime import datetime
+import io
 import hashlib
 import json
 from pathlib import Path
@@ -18,10 +20,12 @@ import numpy as np
 from PIL import Image
 
 import art2d
+import chroma_key
 import gdrive
 import listing
 import mockups
 import panel_detect
+import pattern_tile as tiles
 import redesign
 import preflight
 import rights
@@ -34,6 +38,59 @@ SHA = re.compile(r'[a-f0-9]{64}')
 LEGACY_STATUS = {'queued': 'queued', 'running': 'running', 'succeeded': 'review',
                  'failed': 'failed', 'interrupted': 'interrupted'}
 MAX_ACTIVE = 8
+
+
+KEY_PRESETS = tuple(chroma_key.PRESETS)
+
+
+def key_remove(data):
+    """Key a flat background out of an uploaded design. data: art_base64, preset
+    (balanced|safe|max), key ('auto', 'auto-all', a colour name or '#RRGGBB'), trim (bool),
+    matting (bool: closed-form alpha on the edge band, slower).
+    Returns the transparent PNG as base64 plus what was keyed."""
+    data = data or {}
+    rgba = mockups.decode_rgba(sources.from_base64(data.get('art_base64')))
+    preset = data.get('preset') or 'balanced'
+    if preset not in KEY_PRESETS:
+        raise ValueError('Chế độ xoá nền không hợp lệ.')
+    key = str(data.get('key') or 'auto')
+    out, info = chroma_key.remove_key(rgba, preset=preset, key='auto' if key == 'auto-all' else key,
+                                      allow_neutral_auto=key == 'auto-all', matting=bool(data.get('matting')))
+    box = chroma_key.trim_bounds(out)
+    if box is None:
+        raise ValueError('Sau khi xoá nền không còn gì: thử chế độ "Giữ màu xanh" hoặc chọn đúng màu nền.')
+    if data.get('trim'):
+        x, y, w, h = box
+        out = out[y:y + h, x:x + w]
+    stream = io.BytesIO()
+    Image.fromarray(out).save(stream, 'PNG', dpi=(300, 300))
+    detected = info['detected']
+    return {'png_base64': base64.b64encode(stream.getvalue()).decode('ascii'),
+            'key_hex': info['key_hex'], 'size': [int(out.shape[1]), int(out.shape[0])], 'bbox': list(box),
+            'coverage': round(detected['coverage'], 3) if detected else None,
+            'transparent': round(info['transparent'], 4), 'partial': round(info['partial'], 4),
+            'opaque': round(info['opaque'], 4)}
+
+
+def pattern_tile(data):
+    """Seamless repeat tile from a flat all-over pattern. data: art_base64, edge (256..6000,
+    default 2048). Returns the tile PNG (300 DPI) and a 3 x 3 JPEG preview as base64."""
+    data = data or {}
+    rgba = mockups.decode_rgba(sources.from_base64(data.get('art_base64')))
+    try:
+        edge = int(data.get('edge') or 2048)
+    except (TypeError, ValueError):
+        edge = 0
+    if not 256 <= edge <= 6000:
+        raise ValueError('Cạnh tile phải từ 256 đến 6000 px.')
+    bgr = np.ascontiguousarray(rgba[..., 2::-1])
+    known = rgba[..., 3] >= 128
+    tile, info = tiles.extract(bgr, known, edge=edge)
+    png, jpg = io.BytesIO(), io.BytesIO()
+    Image.fromarray(tile[..., ::-1]).save(png, 'PNG', dpi=(300, 300))
+    Image.fromarray(tiles.preview(tile, kind=info['kind'])[..., ::-1]).save(jpg, 'JPEG', quality=88)
+    return {'png_base64': base64.b64encode(png.getvalue()).decode('ascii'),
+            'preview_base64': base64.b64encode(jpg.getvalue()).decode('ascii'), **info}
 
 
 class StudioV2:
@@ -488,6 +545,12 @@ class StudioV2:
             return self.redesign.analyze(rgba, name, self.segmenter)
         finally:
             self.detect_lock.release()
+
+    def key_remove(self, data):
+        return key_remove(data)
+
+    def pattern_tile(self, data):
+        return pattern_tile(data)
 
     def redesign_get(self, rid):
         return self.redesign.get(rid)
