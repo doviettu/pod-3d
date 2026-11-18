@@ -198,3 +198,5 @@ button.accent { background: var(--accent); color: var(--accent-ink); border-colo
 .rd-vars img, #rd-result img { width: 100%; background: repeating-conic-gradient(#e7e7ea 0% 25%, #fff 0% 50%) 0 0 / 12px 12px; border-radius: 6px; }
 .rd-checks { list-style: none; padding: 0; margin: 6px 0; font-size: 13px; }
 .rd-checks li.bad { color: #b45309; }
+.mk-tag { position: absolute; transform: translate(0, -120%); font-size: 11px; padding: 1px 6px; border-radius: 6px; background: var(--card); border: 1px solid var(--accent); color: var(--accent); pointer-events: none; white-space: nowrap; }
+.mk-tag.active { border-color: #d9480f; color: #d9480f; }

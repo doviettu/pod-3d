@@ -1092,7 +1092,8 @@ $('#chat-new').addEventListener('click', () => {
 });
 
 // ---------- sales mockups ----------
-const mk = { presets: [], current: null, zone: null, view: 'zone', art: null, preview: null };
+const mk = { presets: [], current: null, zones: [], active: 0, view: 'zone', art: null, preview: null };
+const mkActive = () => mk.zones[mk.active];
 
 function mkPreset() { return mk.presets.find(p => p.id === $('#mk-preset').value); }
 
@@ -1129,12 +1130,13 @@ function defaultZone(type, old) {
   const pts = zoneHandles(old);
   const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
   const [x0, y0, x1, y1] = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
-  if (type === 'rect') return { type, box: [x0, y0, x1 - x0, y1 - y0] };
-  if (type === 'cylinder') return { type, box: [x0, y0, x1, y1], wrap: 150, sag: 0.05, taper: 1 };
-  if (type === 'quad') return { type, points: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] };
+  const side = old.side || 'front';
+  if (type === 'rect') return { type, side, box: [x0, y0, x1 - x0, y1 - y0] };
+  if (type === 'cylinder') return { type, side, box: [x0, y0, x1, y1], wrap: 150, sag: 0.05, taper: 1 };
+  if (type === 'quad') return { type, side, points: [[x0, y0], [x1, y0], [x1, y1], [x0, y1]] };
   const points = [];
   for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) points.push([x0 + (x1 - x0) * i / 3, y0 + (y1 - y0) * j / 3]);
-  return { type, points };
+  return { type, side, points };
 }
 
 function mkStage() {
@@ -1145,15 +1147,21 @@ function mkStage() {
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.classList.add('quads');
   const draw = () => {
-    svg.replaceChildren(...outline(mk.zone).map((line, n) => {
-      const node = document.createElementNS('http://www.w3.org/2000/svg', n === 0 && mk.zone.type !== 'mesh' ? 'polygon' : 'polyline');
+    // Every zone is drawn; only the active one is highlighted and has handles. Click a zone to pick it.
+    svg.replaceChildren(...mk.zones.flatMap((zone, z) => outline(zone).map((line, n) => {
+      const node = document.createElementNS('http://www.w3.org/2000/svg', n === 0 && zone.type !== 'mesh' ? 'polygon' : 'polyline');
       node.setAttribute('points', line.map(q => q.join(',')).join(' '));
-      node.classList.add('active');
-      node.dataset.zone = '1';
+      if (z === mk.active) node.classList.add('active');
+      node.dataset.zone = String(z);
       return node;
-    }));
-    $$('.qhandle', stage).forEach(h => h.remove());
-    if (!$('#mk-lock').checked) zoneHandles(mk.zone).forEach((q, i) => stage.append(el('i', { class: 'qhandle', 'data-corner': String(i),
+    })));
+    $$('.qhandle, .mk-tag', stage).forEach(h => h.remove());
+    mk.zones.forEach((zone, z) => {
+      const [x, y] = zoneHandles(zone)[0];
+      stage.append(el('span', { class: 'mk-tag' + (z === mk.active ? ' active' : ''), style: `left:${x * 100}%;top:${y * 100}%` },
+        `${z + 1} · ${SIDE_LABEL[zone.side || 'front']}`));
+    });
+    if (!$('#mk-lock').checked) zoneHandles(mkActive()).forEach((q, i) => stage.append(el('i', { class: 'qhandle', 'data-corner': String(i),
       style: `left:${q[0] * 100}%;top:${q[1] * 100}%` })));
   };
   stage.querySelector('img').after(svg);
@@ -1167,16 +1175,17 @@ function mkStage() {
   stage.addEventListener('pointerdown', event => {
     if ($('#mk-lock').checked) return;
     const t = event.target;
-    if (t.dataset.corner === undefined && !t.dataset.zone) return;
+    if (t.dataset.corner === undefined && t.dataset.zone === undefined) return;
     event.preventDefault();
-    drag = { corner: t.dataset.corner !== undefined ? Number(t.dataset.corner) : null, start: point(event), zone: JSON.parse(JSON.stringify(mk.zone)) };
+    if (t.dataset.zone !== undefined && Number(t.dataset.zone) !== mk.active) { mkSelect(Number(t.dataset.zone)); draw(); }
+    drag = { corner: t.dataset.corner !== undefined ? Number(t.dataset.corner) : null, start: point(event), zone: JSON.parse(JSON.stringify(mkActive())) };
     stage.setPointerCapture(event.pointerId);
   });
   stage.addEventListener('pointermove', event => {
     if (!drag) return;
     const [x, y] = point(event);
-    if (drag.corner !== null) setHandle(mk.zone, drag.corner, [x, y]);
-    else moveZone(mk.zone, drag.zone, x - drag.start[0], y - drag.start[1]);
+    if (drag.corner !== null) setHandle(mkActive(), drag.corner, [x, y]);
+    else moveZone(mkActive(), drag.zone, x - drag.start[0], y - drag.start[1]);
     draw();
   });
   const finish = () => { drag = null; };
@@ -1189,16 +1198,35 @@ function mkOptions() {
   return { fold: Number($('#mk-fold').value), light: Number($('#mk-light').value), texture: Number($('#mk-texture').value), fit: $('#mk-fit').value };
 }
 
-function mkZone() {
-  const zone = JSON.parse(JSON.stringify(mk.zone));
-  if (zone.type === 'cylinder') Object.assign(zone, { wrap: Number($('#mk-wrap').value), sag: Number($('#mk-sag').value), taper: Number($('#mk-taper').value) });
-  return zone;
+// The cylinder sliders edit the active zone; keep them written back before switching or sending.
+function mkSyncCyl() {
+  const zone = mkActive();
+  if (zone && zone.type === 'cylinder') Object.assign(zone, { wrap: Number($('#mk-wrap').value), sag: Number($('#mk-sag').value), taper: Number($('#mk-taper').value) });
+}
+
+function mkZones() {
+  mkSyncCyl();
+  return JSON.parse(JSON.stringify(mk.zones));
+}
+
+function mkSelect(index) {
+  mkSyncCyl();
+  mk.active = Math.max(0, Math.min(index, mk.zones.length - 1));
+  const zone = mkActive();
+  $('#mk-zone-list').replaceChildren(...mk.zones.map((z, i) => el('option', { value: String(i), selected: i === mk.active }, `Vùng ${i + 1} · ${SIDE_LABEL[z.side || 'front']}`)));
+  if (!zone) return;
+  $('#mk-zone').value = zone.type;
+  $('#mk-zone-side').value = zone.side || 'front';
+  $('#mk-wrap').value = zone.wrap || 150; $('#mk-sag').value = zone.sag || 0.05; $('#mk-taper').value = zone.taper || 1;
+  $('#mk-wrap-v').textContent = $('#mk-wrap').value;
+  $('#mk-cyl').hidden = zone.type !== 'cylinder';
+  $('#mk-zone-del').disabled = mk.zones.length < 2;
 }
 
 function mkArtBody() {
-  if (mk.art) return { art_base64: mk.art };
+  if (mk.art) return { art_base64: mk.art, side: $('#mk-art-side').value };
   const [job_id, side] = ($('#mk-job').value || '').split(':');
-  return job_id ? { job_id, side } : null;
+  return job_id ? { job_id, ...(side ? { side } : {}) } : null;
 }
 
 async function mkRender(mode) {
@@ -1207,7 +1235,7 @@ async function mkRender(mode) {
   if (!p || !art) { $('#mk-note').textContent = 'Hãy chọn art: một job 2D hoặc file PNG.'; return null; }
   $('#mk-note').textContent = 'Đang render…';
   try {
-    const r = await api(`/api/v2/mockups/${p.id}/preview`, { ...art, zone: mkZone(), options: mkOptions(), mode });
+    const r = await api(`/api/v2/mockups/${p.id}/preview`, { ...art, zones: mkZones(), options: mkOptions(), mode });
     $('#mk-note').textContent = '';
     return r.url;
   } catch (error) { $('#mk-note').textContent = error.message; return null; }
@@ -1241,15 +1269,15 @@ async function mkShow() {
 
 function mkLoadPreset() {
   const p = mkPreset();
-  mk.zone = p ? JSON.parse(JSON.stringify(p.zone)) : null;
+  mk.zones = p ? JSON.parse(JSON.stringify(p.zones)) : [];
+  mk.active = 0;
   if (p) {
-    $('#mk-zone').value = p.zone.type;
     const o = p.options;
     $('#mk-fold').value = o.fold; $('#mk-light').value = o.light; $('#mk-texture').value = o.texture; $('#mk-fit').value = o.fit;
-    $('#mk-wrap').value = p.zone.wrap || 150; $('#mk-sag').value = p.zone.sag || 0.05; $('#mk-taper').value = p.zone.taper || 1;
-    $('#mk-wrap-v').textContent = $('#mk-wrap').value;
   }
-  $('#mk-cyl').hidden = !p || p.zone.type !== 'cylinder';
+  mkSelect(0);
+  $('#mk-cyl').hidden = !p || mkActive().type !== 'cylinder';
+  $('#mk-warn').textContent = (p && p.warning) || '';
   mkShow();
 }
 
@@ -1262,8 +1290,12 @@ async function loadMockups(select) {
       lib.presets.filter(p => p.group === g).map(p => el('option', { value: p.id, selected: p.id === keep }, p.name)))));
     const done = jobs.filter(j => ['review', 'approved'].includes(j.status) && j.outputs.sides);
     const jobKeep = $('#mk-job').value;
+    const choices = j => {
+      const sides = Object.keys(j.outputs.sides);
+      return [...(sides.length > 1 ? [['', 'Cả 2 mặt']] : []), ...sides.map(side => [side, SIDE_LABEL[side]])];
+    };
     $('#mk-job').replaceChildren(el('option', { value: '' }, '— chọn job —'),
-      ...done.flatMap(j => Object.keys(j.outputs.sides).map(side => el('option', { value: `${j.id}:${side}`, selected: `${j.id}:${side}` === jobKeep }, `${j.sku} · ${SIDE_LABEL[side]}`))));
+      ...done.flatMap(j => choices(j).map(([side, label]) => el('option', { value: `${j.id}:${side}`, selected: `${j.id}:${side}` === jobKeep }, `${j.sku} · ${label}`))));
     state.mockupGroups = lib.groups;
     mkLoadPreset();
   } catch (error) { $('#mk-note').textContent = error.message; }
@@ -1273,9 +1305,33 @@ $$('#mk-views button').forEach(b => b.addEventListener('click', () => { mk.view 
 $('#mk-preset').addEventListener('change', mkLoadPreset);
 $('#mk-lock').addEventListener('change', () => mk.view === 'zone' && mkShow());
 $('#mk-zone').addEventListener('change', () => {
-  if (!mk.zone) return;
-  mk.zone = defaultZone($('#mk-zone').value, mk.zone);
-  $('#mk-cyl').hidden = mk.zone.type !== 'cylinder';
+  if (!mkActive()) return;
+  mk.zones[mk.active] = defaultZone($('#mk-zone').value, mkActive());
+  mkSelect(mk.active);
+  mk.view = 'zone';
+  mkShow();
+});
+$('#mk-zone-list').addEventListener('change', () => { mkSelect(Number($('#mk-zone-list').value)); mk.view = 'zone'; mkShow(); });
+$('#mk-zone-side').addEventListener('change', () => {
+  if (!mkActive()) return;
+  mkActive().side = $('#mk-zone-side').value;
+  mkSelect(mk.active);
+  if (mk.view === 'zone') mkShow();
+});
+$('#mk-zone-add').addEventListener('click', () => {
+  if (!mkActive() || mk.zones.length >= 6) return;
+  const copy = JSON.parse(JSON.stringify(mkActive()));
+  moveZone(copy, JSON.parse(JSON.stringify(copy)), 0.05, 0.05);
+  copy.side = copy.side === 'back' ? 'front' : 'back';
+  mk.zones.push(copy);
+  mkSelect(mk.zones.length - 1);
+  mk.view = 'zone';
+  mkShow();
+});
+$('#mk-zone-del').addEventListener('click', () => {
+  if (mk.zones.length < 2) return;
+  mk.zones.splice(mk.active, 1);
+  mkSelect(mk.active);
   mk.view = 'zone';
   mkShow();
 });
@@ -1291,7 +1347,7 @@ $('#mk-save').addEventListener('click', async () => {
   const p = mkPreset();
   if (!p) return;
   try {
-    await api(`/api/v2/mockups/${p.id}`, { zone: mkZone(), options: mkOptions() });
+    await api(`/api/v2/mockups/${p.id}`, { zones: mkZones(), options: mkOptions() });
     await loadMockups(p.id);
     $('#mk-note').textContent = 'Đã lưu vùng in và thông số.';
   } catch (error) { $('#mk-note').textContent = error.message; }
@@ -1307,7 +1363,9 @@ $('#mk-add').addEventListener('click', async () => {
     $('#mk-file').value = '';
     mk.view = 'zone';
     await loadMockups(p.id);
-    $('#mk-note').textContent = 'Đã thêm. Kéo các góc để đặt vùng in, chọn art rồi bấm Render thử, xong bấm Lưu.';
+    $('#mk-note').textContent = p.zones.length > 1
+      ? `Đã thêm, tự tìm thấy ${p.zones.length} áo trong ảnh (vùng 1 mặt trước, vùng ${p.zones.length} mặt sau). Kéo góc để chỉnh, Render thử, xong bấm Lưu.`
+      : 'Đã thêm. Kéo các góc để đặt vùng in, chọn art rồi bấm Render thử, xong bấm Lưu.';
   } catch (error) { $('#mk-note').textContent = error.message; }
   $('#mk-add').disabled = false;
 });
